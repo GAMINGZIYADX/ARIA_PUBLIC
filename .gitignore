@@ -1,0 +1,22 @@
+# Runtime data — never commit (all generated at runtime)
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Env / secrets
+.env
+*.key
+
+# Logs
+logs/
+*.log
+
+# Personal tooling state
+.claude/
+.swarm/
+tools/worldmonitor/

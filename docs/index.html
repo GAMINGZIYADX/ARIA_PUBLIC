@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARIA — Local AI Voice Assistant</title>
+  <meta name="description" content="ARIA is a fully local, voice-enabled AI assistant. Wake word detection, persistent memory, system controls, Spotify — all running on your own hardware.">
+  <meta property="og:title" content="ARIA — Local AI Voice Assistant">
+  <meta property="og:description" content="Fully local. No cloud. No data leaves your machine.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan:        #00f5ff;
+      --cyan-dim:    rgba(0, 245, 255, 0.55);
+      --cyan-glow:   rgba(0, 245, 255, 0.18);
+      --cyan-faint:  rgba(0, 245, 255, 0.07);
+      --purple:      #a855f7;
+      --purple-glow: rgba(168, 85, 247, 0.18);
+      --bg:          #0a0a0f;
+      --bg-2:        #11111a;
+      --bg-3:        #161624;
+      --line:        rgba(0, 245, 255, 0.12);
+      --line-strong: rgba(0, 245, 255, 0.28);
+      --text:        #e6e7ee;
+      --text-dim:    #8b8da3;
+      --text-faint:  #5a5c72;
+      --mono:        'JetBrains Mono', monospace;
+      --sans:        'Inter', sans-serif;
+      --display:     'Rajdhani', sans-serif;
+      --radius:      14px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Background grid ──────────────────────────────────────── */
+    .bg-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-grid {
+      background-image:
+        linear-gradient(rgba(0, 245, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 245, 255, 0.035) 1px, transparent 1px);
+      background-size: 52px 52px;
+      mask-image: radial-gradient(ellipse 75% 65% at 50% 30%, #000 20%, transparent 80%);
+    }
+    .bg-vignette {
+      background: radial-gradient(ellipse 90% 90% at 50% 50%, transparent 20%, rgba(0,0,0,0.72) 90%);
+    }
+    .bg-aurora {
+      background:
+        radial-gradient(ellipse 70% 60% at 20% 10%, rgba(168, 85, 247, 0.07), transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 20%, rgba(0, 245, 255, 0.05), transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 100%, rgba(0, 245, 255, 0.04), transparent 60%);
+    }
+
+    /* ── Particles ────────────────────────────────────────────── */
+    #particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .pt {
+      position: absolute;
+      border-radius: 50%;
+      animation: pt-float linear infinite;
+    }
+    @keyframes pt-float {
+      0%   { transform: translateY(0)    scale(0.4); opacity: 0; }
+      15%  { opacity: 0.7; }
+      85%  { opacity: 0.4; }
+      100% { transform: translateY(-90px) scale(1);  opacity: 0; }
+    }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Nav ──────────────────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 14px 0;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 22px;
+      background: rgba(10, 10, 15, 0.75);
+      backdrop-filter: blur(18px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-logo-mark {
+      width: 28px; height: 28px;
+    }
+    .nav-logo-text {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.28em;
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .nav-links {
+      display: flex;
+      gap: 6px;
+      list-style: none;
+    }
+    .nav-links a {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 5px 12px;
+      border-radius: 8px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav-links a:hover {
+      color: var(--cyan);
+      background: var(--cyan-faint);
+      text-decoration: none;
+    }
+    .nav-cta {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--cyan) !important;
+      border: 1px solid var(--cyan-dim);
+      padding: 6px 16px;
+      border-radius: 8px;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .nav-cta:hover {
+      background: var(--cyan-faint) !important;
+      box-shadow: 0 0 14px rgba(0,245,255,0.2);
+      text-decoration: none !important;
+    }
+
+    /* ── Hero ─────────────────────────────────────────────────── */
+    #hero {
+      padding: 80px 0 100px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+    }
+
+    /* Animated rings */
+    .rings {
+      position: relative;
+      width: 220px; height: 220px;
+      margin-bottom: 40px;
+      flex-shrink: 0;
+    }
+    .rings svg {
+      position: absolute;
+      inset: 0;
+      width: 100%; height: 100%;
+      overflow: visible;
+    }
+    .ring-1 { animation: ring-pulse  4s ease-in-out infinite; }
+    .ring-2 { animation: ring-spin  28s linear      infinite; transform-origin: 110px 110px; }
+    .ring-3 { animation: ring-pulse  4s ease-in-out infinite reverse; }
+    .ring-4 { animation: ring-spin  18s linear      infinite reverse; transform-origin: 110px 110px; }
+    @keyframes ring-pulse {
+      0%, 100% { opacity: 0.45; r: 104; }
+      50%       { opacity: 0.9;  r: 108; }
+    }
+    @keyframes ring-spin { to { transform: rotate(360deg); } }
+
+    /* Center logo glow */
+    .logo-glow {
+      position: absolute;
+      inset: 30%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,245,255,0.45), transparent 65%);
+      filter: blur(22px);
+      animation: glow-breathe 4s ease-in-out infinite;
+    }
+    @keyframes glow-breathe {
+      0%, 100% { opacity: 0.6; transform: scale(1);    }
+      50%       { opacity: 1;   transform: scale(1.15); }
+    }
+
+    /* ARIA wordmark inside rings */
+    .logo-wordmark {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .logo-wordmark span {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 46px;
+      letter-spacing: 0.22em;
+      background: linear-gradient(135deg, var(--cyan) 30%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 18px rgba(0,245,255,0.5));
+    }
+
+    /* Hero status pill */
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      border: 1px solid var(--line);
+      padding: 5px 14px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 6px #34d399;
+      animation: led 1.8s ease-in-out infinite;
+    }
+    @keyframes led { 50% { opacity: 0.35; } }
+
+    .hero-title {
+      font-family: var(--display);
+      font-size: clamp(36px, 6vw, 68px);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: 0.02em;
+      background: linear-gradient(135deg, #ffffff 30%, var(--cyan) 70%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 18px;
+    }
+    .hero-sub {
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--text-dim);
+      max-width: 560px;
+      line-height: 1.7;
+      margin-bottom: 38px;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 500; }
+
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 12px 26px;
+      border-radius: 10px;
+      transition: all 0.2s;
+      cursor: pointer;
+      text-decoration: none !important;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, rgba(0,245,255,0.15), rgba(168,85,247,0.12));
+      border: 1px solid var(--cyan-dim);
+      color: var(--cyan);
+      box-shadow: 0 0 20px rgba(0,245,255,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, rgba(0,245,255,0.25), rgba(168,85,247,0.2));
+      box-shadow: 0 0 30px rgba(0,245,255,0.22), inset 0 1px 0 rgba(255,255,255,0.08);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--line-strong);
+      color: var(--text-dim);
+    }
+    .btn-secondary:hover {
+      border-color: var(--cyan-dim);
+      color: var(--text);
+      background: var(--cyan-faint);
+      transform: translateY(-1px);
+    }
+
+    /* Scroll hint */
+    .scroll-hint {
+      margin-top: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-faint);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      animation: hint-fade 3s ease-in-out 2s both;
+    }
+    .scroll-hint svg { animation: bounce 2s ease-in-out infinite; }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0);  }
+      50%       { transform: translateY(5px); }
+    }
+    @keyframes hint-fade {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Section shared ───────────────────────────────────────── */
+    section { padding: 80px 0; }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: var(--display);
+      font-size: clamp(26px, 4vw, 40px);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+    .section-sub {
+      font-size: 15px;
+      color: var(--text-dim);
+      max-width: 520px;
+      line-height: 1.7;
+    }
+    .section-head { margin-bottom: 52px; }
+
+    /* Divider line */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+      margin: 0;
+    }
+
+    /* ── Features ─────────────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 18px;
+    }
+    .feat-card {
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px 26px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+    }
+    .feat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan-glow), transparent);
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+    .feat-card:hover {
+      border-color: var(--line-strong);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(0,245,255,0.06);
+    }
+    .feat-card:hover::before { opacity: 1; }
+
+    .feat-icon {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      background: var(--cyan-faint);
+      border: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px;
+      color: var(--cyan);
+    }
+    .feat-title {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 17px;
+      letter-spacing: 0.04em;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .feat-desc {
+      font-size: 13.5px;
+      color: var(--text-dim);
+      line-height: 1.65;
+    }
+    .feat-tag {
+      display: inline-block;
+      margin-top: 16px;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      border: 1px solid var(--line);
+      padding: 3px 9px;
+      border-radius: 6px;
+    }
+
+    /* ── Setup steps ──────────────────────────────────────────── */
+    #setup { background: var(--bg-2); }
+
+    .setup-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px 56px;
+      align-items: start;
+    }
+    @media (max-width: 720px) {
+      .setup-grid { grid-template-columns: 1fr; }
+    }
+
+    .step {
+      display: flex;
+      gap: 20px;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--line-strong);
+      background: var(--bg-3);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--cyan);
+      box-shadow: 0 0 12px rgba(0,245,255,0.1);
+    }
+    .step-body { flex: 1; }
+    .step-title {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .step-desc {
+      font-size: 13.5px;
+      color: var(--text-dim);
+      line-height: 1.65;
+      margin-bottom: 10px;
+    }
+    .code-block {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--cyan);
+      overflow-x: auto;
+      white-space: pre;
+      letter-spacing: 0.02em;
+    }
+    .code-comment { color: var(--text-faint); }
+
+    /* ── Built with ───────────────────────────────────────────── */
+    .stack-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .stack-chip {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      color: var(--text-dim);
+      transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+    .stack-chip:hover {
+      border-color: var(--line-strong);
+      color: var(--text);
+      box-shadow: 0 0 14px rgba(0,245,255,0.06);
+    }
+    .stack-chip .chip-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Footer ───────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 36px 0;
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .footer-left {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--text-faint);
+    }
+    .footer-links {
+      display: flex;
+      gap: 20px;
+    }
+    .footer-links a {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      transition: color 0.2s;
+    }
+    .footer-links a:hover {
+      color: var(--cyan);
+      text-decoration: none;
+    }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .nav-links { display: none; }
+      .hero-actions { flex-direction: column; align-items: center; }
+      .features-grid { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- Fixed background layers -->
+<div class="bg-layer bg-aurora"></div>
+<div class="bg-layer bg-grid"></div>
+<div class="bg-layer bg-vignette"></div>
+<div id="particles"></div>
+
+<!-- ── Nav ──────────────────────────────────────────────────── -->
+<nav>
+  <div class="wrapper">
+    <div class="nav-inner">
+      <div class="nav-logo">
+        <!-- Inline ring mark -->
+        <svg class="nav-logo-mark" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="14" cy="14" r="12" stroke="#00f5ff" stroke-width="1" stroke-opacity="0.6"/>
+          <circle cx="14" cy="14" r="8"  stroke="#a855f7" stroke-width="1" stroke-opacity="0.5" stroke-dasharray="3 2"/>
+          <circle cx="14" cy="14" r="4"  fill="#00f5ff" fill-opacity="0.25"/>
+          <circle cx="14" cy="14" r="2"  fill="#00f5ff"/>
+        </svg>
+        <span class="nav-logo-text">ARIA</span>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#setup">Setup</a></li>
+        <li><a href="#stack">Stack</a></li>
+        <li><a href="https://github.com/YOUR_USERNAME/ARIA" class="nav-cta">GitHub ↗</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="wrapper">
+
+    <!-- Animated rings with wordmark -->
+    <div class="rings">
+      <div class="logo-glow"></div>
+      <svg viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer ring -->
+        <circle class="ring-1" cx="110" cy="110" r="104"
+          stroke="#00f5ff" stroke-width="0.8" stroke-opacity="0.35"/>
+        <!-- Dashed spinning ring -->
+        <circle class="ring-2" cx="110" cy="110" r="84"
+          stroke="#a855f7" stroke-width="0.8" stroke-opacity="0.3"
+          stroke-dasharray="5 4"/>
+        <!-- Inner static ring -->
+        <circle class="ring-3" cx="110" cy="110" r="64"
+          stroke="#00f5ff" stroke-width="0.6" stroke-opacity="0.2"/>
+        <!-- Inner spinning tick ring -->
+        <circle class="ring-4" cx="110" cy="110" r="46"
+          stroke="#a855f7" stroke-width="0.6" stroke-opacity="0.2"
+          stroke-dasharray="2 6"/>
+        <!-- Tick marks on outer ring -->
+        <line x1="110" y1="6"   x2="110" y2="16"  stroke="#00f5ff" stroke-width="1" stroke-opacity="0.5"/>
+        <line x1="110" y1="204" x2="110" y2="214" stroke="#00f5ff" stroke-width="1" stroke-opacity="0.5"/>
+        <line x1="6"   y1="110" x2="16"  y2="110" stroke="#00f5ff" stroke-width="1" stroke-opacity="0.5"/>
+        <line x1="204" y1="110" x2="214" y2="110" stroke="#00f5ff" stroke-width="1" stroke-opacity="0.5"/>
+        <!-- Glow dot at top -->
+        <circle cx="110" cy="6" r="2.5" fill="#00f5ff" fill-opacity="0.9"/>
+      </svg>
+      <div class="logo-wordmark"><span>ARIA</span></div>
+    </div>
+
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Fully local · offline-first
+    </div>
+
+    <h1 class="hero-title">
+      Your AI. Your Machine.<br>No Cloud Required.
+    </h1>
+
+    <p class="hero-sub">
+      ARIA is a <strong>fully local voice assistant</strong> powered by Ollama.
+      Wake word detection, persistent memory, system controls, Spotify — all running on your hardware.
+      Your voice never leaves your machine.
+    </p>
+
+    <div class="hero-actions">
+      <a href="https://github.com/YOUR_USERNAME/ARIA" class="btn btn-primary">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+        </svg>
+        View on GitHub
+      </a>
+      <a href="../setup.py" class="btn btn-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        setup.py
+      </a>
+    </div>
+
+    <div class="scroll-hint">
+      <span>Scroll to explore</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ── Features ─────────────────────────────────────────────── -->
+<section id="features">
+  <div class="wrapper">
+    <div class="section-head">
+      <div class="section-label">Capabilities</div>
+      <h2 class="section-title">Everything runs locally</h2>
+      <p class="section-sub">No subscriptions. No API rate limits. No data leaving your machine. ARIA handles voice, memory, and system control entirely on your hardware.</p>
+    </div>
+
+    <div class="features-grid">
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8"  y1="23" x2="16" y2="23"/>
+          </svg>
+        </div>
+        <div class="feat-title">Wake Word Detection</div>
+        <div class="feat-desc">Say <em>"Aria"</em> to activate. OpenWakeWord runs fully offline — no continuous cloud streaming, no latency, no privacy concerns.</div>
+        <span class="feat-tag">OpenWakeWord</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+          </svg>
+        </div>
+        <div class="feat-title">Persistent Memory</div>
+        <div class="feat-desc">ARIA remembers facts, tracks your habits, learns your music taste, and builds a user model over time — stored locally in a ChromaDB vector database.</div>
+        <span class="feat-tag">ChromaDB · JSON</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <polyline points="4 17 10 11 4 5"/>
+            <line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+        </div>
+        <div class="feat-title">System Controls</div>
+        <div class="feat-desc">Open apps, execute bash commands, browse URLs, and control your desktop through natural voice commands or the built-in terminal panel.</div>
+        <span class="feat-tag">Subprocess · dbus</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="10"/>
+            <polygon points="10 8 16 12 10 16 10 8"/>
+          </svg>
+        </div>
+        <div class="feat-title">Spotify Integration</div>
+        <div class="feat-desc">Search and play tracks, skip songs, pause, and query what's currently playing — via the Spotify Web API with OAuth token caching.</div>
+        <span class="feat-tag">Spotipy · MPRIS dbus</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8"  y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+        </div>
+        <div class="feat-title">Holographic Web UI</div>
+        <div class="feat-desc">A dark, glassmorphic dashboard with a chat panel, bash terminal, camera feed, settings, and a live world-intelligence feed. Runs in browser or as a desktop window.</div>
+        <span class="feat-tag">Flask · PyWebView</span>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+        <div class="feat-title">Live Web Intelligence</div>
+        <div class="feat-desc">Real-time RSS polling across F1, AI/tech, geopolitics, and world news. Breaking alerts fire proactively. Web search via DuckDuckGo requires no API key.</div>
+        <span class="feat-tag">RSS · DuckDuckGo</span>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ── Setup ─────────────────────────────────────────────────── -->
+<section id="setup">
+  <div class="wrapper">
+    <div class="section-head">
+      <div class="section-label">Installation</div>
+      <h2 class="section-title">Up and running in minutes</h2>
+      <p class="section-sub">ARIA needs Python 3.10+, Ollama, and a mic. The interactive setup wizard handles the rest.</p>
+    </div>
+
+    <div class="setup-grid">
+
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-body">
+          <div class="step-title">Clone &amp; install dependencies</div>
+          <div class="step-desc">Python 3.10+ required. A CUDA-capable GPU is recommended for real-time transcription, but CPU works too.</div>
+          <div class="code-block">git clone https://github.com/YOUR_USERNAME/ARIA
+cd ARIA
+bash setup.sh</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-body">
+          <div class="step-title">Pull an Ollama model</div>
+          <div class="step-desc">ARIA is tested with Qwen 2.5 but works with any chat model installed in Ollama.</div>
+          <div class="code-block"><span class="code-comment"># Install Ollama first: https://ollama.com</span>
+ollama pull qwen2.5:14b</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-body">
+          <div class="step-title">Run the configuration wizard</div>
+          <div class="step-desc">Detects your installed models automatically. Asks for your name, password, and optional Spotify credentials. Writes <code style="font-family:var(--mono);color:var(--cyan);font-size:12px">.env</code> for you.</div>
+          <div class="code-block">python3 setup.py</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-body">
+          <div class="step-title">Launch ARIA</div>
+          <div class="step-desc">Choose your preferred mode. The desktop launcher wraps the web UI in a native window with a custom WM class.</div>
+          <div class="code-block"><span class="code-comment"># Web UI in browser</span>
+bash run-web.sh
+
+<span class="code-comment"># Native desktop window</span>
+python3 launch.py
+
+<span class="code-comment"># Voice-only terminal</span>
+python3 aria.py</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ── Built with ────────────────────────────────────────────── -->
+<section id="stack">
+  <div class="wrapper">
+    <div class="section-head">
+      <div class="section-label">Built with</div>
+      <h2 class="section-title">Open-source, all the way down</h2>
+      <p class="section-sub">No proprietary AI APIs. Every component is replaceable and runs on commodity hardware.</p>
+    </div>
+
+    <div class="stack-grid">
+      <div class="stack-chip"><span class="chip-dot" style="background:#3776ab"></span>Python 3.10+</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#00d4aa"></span>Ollama</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#00f5ff"></span>Flask</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#a855f7"></span>faster-whisper</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#f59e0b"></span>OpenWakeWord</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#34d399"></span>Piper TTS</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#60a5fa"></span>Web Speech API</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#fb923c"></span>ChromaDB</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#1db954"></span>Spotipy</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#e2e8f0"></span>PyWebView</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#ff6b6b"></span>edge-tts</div>
+      <div class="stack-chip"><span class="chip-dot" style="background:#7c3aed"></span>Kokoro TTS</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────────── -->
+<footer>
+  <div class="wrapper">
+    <div class="footer-inner">
+      <div class="footer-left">
+        © 2026 Ziyad Noucair — Source-available. See <a href="../LICENSE" style="color:var(--text-dim)">License</a>.
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/YOUR_USERNAME/ARIA">GitHub</a>
+        <a href="../CODE_OF_CONDUCT.md">Code of Conduct</a>
+        <a href="../CONTRIBUTING.md">Contributing</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ── Particle JS ─────────────────────────────────────────────── -->
+<script>
+(function () {
+  const container = document.getElementById('particles');
+  const COUNT = 28;
+  const colors = ['#00f5ff', '#a855f7', '#60a5fa'];
+
+  for (let i = 0; i < COUNT; i++) {
+    const el = document.createElement('div');
+    el.className = 'pt';
+    const size   = Math.random() * 2.5 + 1;
+    const color  = colors[Math.floor(Math.random() * colors.length)];
+    const left   = Math.random() * 100;
+    const delay  = Math.random() * 12;
+    const dur    = Math.random() * 14 + 10;
+
+    el.style.cssText = [
+      `width:${size}px`, `height:${size}px`,
+      `left:${left}%`,
+      `bottom:${Math.random() * 40}%`,
+      `background:${color}`,
+      `box-shadow:0 0 ${size * 3}px ${color}`,
+      `animation-duration:${dur}s`,
+      `animation-delay:${delay}s`,
+    ].join(';');
+
+    container.appendChild(el);
+  }
+})();
+</script>
+
+</body>
+</html>
