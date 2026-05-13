@@ -23,7 +23,7 @@ ARIA listens for a wake word, understands spoken commands, and can open apps, se
 ## Requirements
 
 - Python 3.10+
-- Linux (tested on Ubuntu 24.04)
+- Windows 10/11, Linux (tested on Ubuntu 24.04), or macOS
 - [Ollama](https://ollama.com/) running locally
 - CUDA-compatible GPU recommended (CPU works but is slower)
 - Microphone for voice mode
@@ -45,7 +45,9 @@ To enable it:
 
 ## Setup
 
-### 1. Clone and install dependencies
+### Linux / macOS
+
+#### 1. Clone and install dependencies
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/ARIA.git
@@ -53,29 +55,26 @@ cd ARIA
 pip install -r requirements.txt
 ```
 
-### 2. Pull an Ollama model
+#### 2. Pull an Ollama model
 
 ```bash
 ollama pull qwen2.5:14b
 ```
 
-### 3. Configure environment
+#### 3. Configure environment
 
 ```bash
 cp .env.example .env
 # Edit .env and fill in your values (see comments inside)
 ```
 
-At minimum you need:
-- `ARIA_PASSWORD` — password for the web UI
-- `SECRET_KEY` — random Flask session key
-- `OLLAMA_MODEL` — model name you pulled
+Or run the interactive wizard:
 
-### 4. Set your name
+```bash
+python3 setup.py
+```
 
-Open `data/persona.json` and replace `YOUR_NAME` with your name. This is what ARIA will call you.
-
-### 5. Run
+#### 4. Run
 
 **Voice + web UI (desktop window):**
 ```bash
@@ -97,6 +96,103 @@ python3 aria.py
 ```bash
 python3 aria.py --text
 ```
+
+---
+
+### Windows 10 / 11
+
+#### Prerequisites
+
+1. **Python 3.10+** — download from [python.org](https://www.python.org/downloads/) (check *Add Python to PATH* during install)
+2. **Ollama for Windows** — download from [ollama.com](https://ollama.com/download/windows) and run the installer
+3. **Git** — [git-scm.com](https://git-scm.com/download/win) (optional, or download the zip from GitHub)
+4. **Microsoft C++ Build Tools** — required by some Python packages.  
+   Install the "Desktop development with C++" workload from [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+
+#### 1. Clone and install dependencies
+
+Open **PowerShell** or **Command Prompt**:
+
+```powershell
+git clone https://github.com/YOUR_USERNAME/ARIA.git
+cd ARIA
+pip install -r requirements.txt
+```
+
+> **Optional extras for Windows:**  
+> `pip install win10toast Pillow`  
+> `win10toast` enables native Windows toast notifications.  
+> `Pillow` enables the screenshot tool.
+
+#### 2. Pull an Ollama model
+
+```powershell
+ollama pull qwen2.5:14b
+```
+
+Ollama on Windows runs as a background service after install; no `ollama serve` needed.
+
+#### 3. Configure environment
+
+Run the interactive wizard (recommended):
+
+```powershell
+python setup.py
+```
+
+Or copy the example file manually:
+
+```powershell
+copy .env.example .env
+# Edit .env with Notepad or any editor
+```
+
+At minimum you need:
+- `ARIA_PASSWORD` — password for the web UI
+- `SECRET_KEY` — random Flask session key (the wizard generates this for you)
+- `OLLAMA_MODEL` — model name you pulled
+
+#### 4. Run
+
+**Web UI only (browser):**
+```powershell
+python app.py
+# Open http://localhost:5000
+```
+
+**Desktop window (PyWebView):**
+```powershell
+python launch.py
+```
+
+**Voice only (terminal):**
+```powershell
+python aria.py
+```
+
+**Text only (no mic):**
+```powershell
+python aria.py --text
+```
+
+#### Windows feature notes
+
+| Feature | Windows support |
+|---------|----------------|
+| Wake word detection | ✅ Full support |
+| Speech-to-text (Whisper) | ✅ Full support |
+| Text-to-speech (Piper / Edge TTS) | ✅ Full support |
+| Local LLM via Ollama | ✅ Full support |
+| Web UI | ✅ Full support |
+| Open URLs / apps | ✅ Uses `os.startfile` / shell |
+| Volume control | ✅ Windows media keys via ctypes |
+| Lock / sleep / shutdown / reboot | ✅ Windows API equivalents |
+| Clipboard read/write | ✅ PowerShell `Get-Clipboard` / `Set-Clipboard` |
+| Screenshot | ✅ Requires `pip install Pillow` |
+| Desktop notifications | ⚠️ Requires `pip install win10toast` |
+| Shell (bash) execution | ⚠️ Uses `cmd.exe`; POSIX commands need Git Bash on PATH |
+| Spotify MPRIS control | ⚠️ Spotipy Web API works; dbus controls are Linux-only |
+| CPU temperature sensor | ⚠️ WMI query (may need elevated permissions) |
 
 ---
 

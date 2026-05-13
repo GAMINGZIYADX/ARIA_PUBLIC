@@ -184,39 +184,54 @@ def _play_via_spotipy(query: str, title: str = "", artist: str = "") -> tuple[bo
         return False, track_uri   # caller can use the URI with xdg-open
 
 
-def _play_via_xdg_open(uri: str) -> bool:
+def _play_via_uri_open(uri: str) -> bool:
     """
-    Open a spotify: URI via xdg-open.
+    Open a spotify: URI using the platform's default handler.
     Works for both spotify:track:XXX (plays immediately) and
     spotify:search:QUERY (opens search results).
     Returns True if the command launched without an immediate error.
     """
-    import sys
+    import sys, os
     try:
-        proc = subprocess.Popen(
-            ["xdg-open", uri],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-        )
+        if sys.platform == "win32":
+            os.startfile(uri)
+            print(f"[spotify] os.startfile launched: {uri}", file=sys.stderr)
+            return True
+        elif sys.platform == "darwin":
+            proc = subprocess.Popen(
+                ["open", uri],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        else:
+            proc = subprocess.Popen(
+                ["xdg-open", uri],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
         try:
             _, err = proc.communicate(timeout=2)
             if proc.returncode not in (None, 0):
                 print(
-                    f"[spotify] xdg-open failed rc={proc.returncode} "
+                    f"[spotify] URI open failed rc={proc.returncode} "
                     f"err={err.decode(errors='replace')!r}",
                     file=sys.stderr,
                 )
                 return False
         except subprocess.TimeoutExpired:
             pass  # still running — normal for a UI app
-        print(f"[spotify] xdg-open launched: {uri}", file=sys.stderr)
+        print(f"[spotify] URI opened: {uri}", file=sys.stderr)
         return True
     except FileNotFoundError:
-        print("[spotify] xdg-open not found", file=sys.stderr)
+        print("[spotify] URI handler not found", file=sys.stderr)
         return False
     except Exception as e:
-        print(f"[spotify] xdg-open error: {e}", file=sys.stderr)
+        print(f"[spotify] URI open error: {e}", file=sys.stderr)
         return False
+
+
+# Keep old name as alias for any existing call sites
+_play_via_xdg_open = _play_via_uri_open
 
 
 def play_search(query: str, title: str = "", artist: str = "") -> bool:
@@ -258,6 +273,10 @@ _PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
 
 
 def _dbus_call(method: str, *extra_args: str) -> bool:
+    """MPRIS/dbus control — Linux only. Returns False gracefully on other platforms."""
+    import sys
+    if sys.platform != "linux":
+        return False
     cmd = [
         "dbus-send", "--print-reply",
         f"--dest={_SPOTIFY_DEST}",
@@ -284,6 +303,10 @@ def previous_track() -> bool:
 # ── Now-playing query ─────────────────────────────────────────────────────────
 
 def _via_playerctl() -> dict[str, Any] | None:
+    """Query Spotify metadata via playerctl (MPRIS). Linux only."""
+    import sys
+    if sys.platform != "linux":
+        return None
     rc, players = _run(["playerctl", "-l"])
     if rc != 0:
         return None
@@ -313,6 +336,10 @@ def _via_playerctl() -> dict[str, Any] | None:
 
 
 def _via_dbus() -> dict[str, Any] | None:
+    """Query Spotify metadata via dbus-send (MPRIS). Linux only."""
+    import sys
+    if sys.platform != "linux":
+        return None
     rc, out = _run([
         "dbus-send", "--print-reply", "--dest=org.mpris.MediaPlayer2.spotify",
         "/org/mpris/MediaPlayer2",

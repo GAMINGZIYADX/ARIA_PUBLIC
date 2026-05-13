@@ -10,10 +10,11 @@ Usage:
 # ── Set process name + WM_CLASS to "ARIA" before any other import ──────────
 # Must happen first so /proc/self/comm, GDK, and GTK all see the right name.
 import os as _os
-# X11 WM_CLASS (instance name) — read by GTK before its first window
-_os.environ.setdefault("RESOURCE_NAME", "ARIA")
-# GTK program class — shows as WM_CLASS class name (second field)
-_os.environ.setdefault("GDK_PROGRAM_CLASS", "ARIA")
+import sys as _sys
+# X11/GTK WM_CLASS — only meaningful on Linux (GTK/X11/Wayland)
+if _sys.platform not in ("win32", "darwin"):
+    _os.environ.setdefault("RESOURCE_NAME", "ARIA")
+    _os.environ.setdefault("GDK_PROGRAM_CLASS", "ARIA")
 
 try:
     import setproctitle
@@ -144,21 +145,22 @@ def _fix_wm_class():
     After the window appears, try to rename its WM_CLASS via wmctrl (X11)
     or xdotool as a belt-and-suspenders fallback.  Runs in a background
     thread so it doesn't block the GTK main loop.
+    Linux/X11 only — no-op on Windows and macOS.
     """
+    if sys.platform != "linux":
+        return
     import subprocess as _sp
     time.sleep(2)   # wait for the window to be mapped
-    # wmctrl: rename by PID — works on X11 and XWayland
     pid = os.getpid()
     try:
         _sp.run(
             ["wmctrl", "-i", "-r",
-             f":ACTIVE:",  # target the active (focused) window
+             f":ACTIVE:",
              "-T", "ARIA"],
             timeout=3, capture_output=True
         )
     except Exception:
         pass
-    # xdotool fallback: set WM_CLASS by PID
     try:
         result = _sp.run(
             ["xdotool", "search", "--pid", str(pid), "--name", "ARIA"],

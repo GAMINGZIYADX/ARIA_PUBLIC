@@ -100,11 +100,16 @@ def _agent_security() -> dict[str, Any]:
     # 1b. .env file existence + permissions
     env_path = _ROOT / ".env"
     if env_path.exists():
-        mode = oct(env_path.stat().st_mode)[-3:]
-        if mode in ("600", "400"):
-            checks.append(_ok(f".env exists, permissions {mode}"))
+        import platform as _plat_perm
+        if _plat_perm.system() == "Windows":
+            # Windows ACLs differ from POSIX modes; just confirm the file exists
+            checks.append(_ok(".env exists (ensure it is not readable by other users)"))
         else:
-            checks.append(_warn(f".env permissions {mode} — should be 600"))
+            mode = oct(env_path.stat().st_mode)[-3:]
+            if mode in ("600", "400"):
+                checks.append(_ok(f".env exists, permissions {mode}"))
+            else:
+                checks.append(_warn(f".env permissions {mode} — should be 600"))
     else:
         checks.append(_ok(".env not present (credentials may be in environment)"))
 
@@ -140,7 +145,20 @@ def _agent_security() -> dict[str, Any]:
 def _agent_performance(ollama_url: str = "http://localhost:11434") -> dict[str, Any]:
     checks: list[dict] = []
 
-    # 2a. Ollama round-trip latency
+    # 2a. Hardware / VRAM detection
+    try:
+        import hw_detect as _hw
+        hw = _hw.get_profile()
+        checks.append(_ok(_hw.summarize(hw)))
+        # Resolve OLLAMA_MODEL from env so the warning is model-aware
+        _llm = os.environ.get("OLLAMA_MODEL", "qwen2.5:14b")
+        _hw.add_llm_warning(hw, _llm)
+        if hw.llm_warning:
+            checks.append(_warn(f"LLM VRAM: {hw.llm_warning}"))
+    except Exception as e:
+        checks.append(_warn(f"Hardware detection failed: {e}"))
+
+    # 2b. Ollama round-trip latency
     try:
         start = time.perf_counter()
         req = urllib.request.Request(
@@ -155,17 +173,39 @@ def _agent_performance(ollama_url: str = "http://localhost:11434") -> dict[str, 
     except Exception as e:
         checks.append(_fail(f"Ollama unreachable: {e}"))
 
-    # 2b. RAM via /proc/meminfo
+    # 2b. RAM — platform-aware
     try:
-        info: dict[str, int] = {}
-        with open("/proc/meminfo") as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) >= 2:
-                    info[parts[0].rstrip(":")] = int(parts[1])
-        total_mb = info.get("MemTotal", 0) // 1024
-        avail_mb = info.get("MemAvailable", 0) // 1024
-        used_pct = 100 - int(avail_mb / total_mb * 100) if total_mb else 0
+        import platform as _platform
+        if _platform.system() == "Windows":
+            import ctypes, ctypes.wintypes
+            class _MEMSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength",                ctypes.c_ulong),
+                    ("dwMemoryLoad",            ctypes.c_ulong),
+                    ("ullTotalPhys",            ctypes.c_ulonglong),
+                    ("ullAvailPhys",            ctypes.c_ulonglong),
+                    ("ullTotalPageFile",        ctypes.c_ulonglong),
+                    ("ullAvailPageFile",        ctypes.c_ulonglong),
+                    ("ullTotalVirtual",         ctypes.c_ulonglong),
+                    ("ullAvailVirtual",         ctypes.c_ulonglong),
+                    ("sullAvailExtendedVirtual",ctypes.c_ulonglong),
+                ]
+            stat = _MEMSTATUSEX()
+            stat.dwLength = ctypes.sizeof(stat)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
+            total_mb = stat.ullTotalPhys // (1024 * 1024)
+            avail_mb = stat.ullAvailPhys // (1024 * 1024)
+            used_pct = int((total_mb - avail_mb) / total_mb * 100) if total_mb else 0
+        else:
+            info: dict[str, int] = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        info[parts[0].rstrip(":")] = int(parts[1])
+            total_mb = info.get("MemTotal", 0) // 1024
+            avail_mb = info.get("MemAvailable", 0) // 1024
+            used_pct = 100 - int(avail_mb / total_mb * 100) if total_mb else 0
         label = "ok" if used_pct < 80 else "warn"
         checks.append({"status": label,
                         "detail": f"RAM {used_pct}% used ({avail_mb} MB free / {total_mb} MB total)"})
@@ -286,26 +326,50 @@ def _agent_dependencies() -> dict[str, Any]:
 def _agent_system(ollama_url: str = "http://localhost:11434") -> dict[str, Any]:
     checks: list[dict] = []
 
-    # 5a. CPU temp via sensors
-    rc, out, _ = _run(["sensors", "-j"], timeout=5)
-    if rc == 0 and out:
+    # 5a. CPU temp
+    import platform as _plat
+    if _plat.system() == "Windows":
+        # WMI temperature query (requires wmi package or elevated permissions)
         try:
-            data = json.loads(out)
-            temps: list[float] = []
-            for chip in data.values():
-                for sub in chip.values():
-                    if isinstance(sub, dict):
-                        for k, v in sub.items():
-                            if "input" in k and isinstance(v, (int, float)):
-                                temps.append(float(v))
-            if temps:
-                max_c = max(temps)
-                label = "ok" if max_c < 80 else "warn"
-                checks.append({"status": label, "detail": f"CPU max temp {max_c:.0f}°C"})
+            rc, out, _ = _run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 "Get-WmiObject -Namespace root/wmi -Class MSAcpi_ThermalZoneTemperature "
+                 "| Select-Object -ExpandProperty CurrentTemperature"],
+                timeout=5,
+            )
+            if rc == 0 and out.strip():
+                raw_vals = [float(v) for v in out.strip().splitlines() if v.strip().replace(".", "").isdigit()]
+                if raw_vals:
+                    # WMI reports in tenths of Kelvin
+                    max_c = max(raw_vals) / 10.0 - 273.15
+                    label = "ok" if max_c < 80 else "warn"
+                    checks.append({"status": label, "detail": f"CPU max temp {max_c:.0f}°C"})
+                else:
+                    checks.append({"status": "info", "detail": "CPU temp: WMI query returned no data"})
+            else:
+                checks.append({"status": "info", "detail": "CPU temp: WMI query unavailable"})
         except Exception:
-            checks.append({"status": "info", "detail": "CPU temp parse error"})
+            checks.append({"status": "info", "detail": "CPU temp unavailable on Windows"})
     else:
-        checks.append({"status": "info", "detail": "lm-sensors not available"})
+        rc, out, _ = _run(["sensors", "-j"], timeout=5)
+        if rc == 0 and out:
+            try:
+                data = json.loads(out)
+                temps: list[float] = []
+                for chip in data.values():
+                    for sub in chip.values():
+                        if isinstance(sub, dict):
+                            for k, v in sub.items():
+                                if "input" in k and isinstance(v, (int, float)):
+                                    temps.append(float(v))
+                if temps:
+                    max_c = max(temps)
+                    label = "ok" if max_c < 80 else "warn"
+                    checks.append({"status": label, "detail": f"CPU max temp {max_c:.0f}°C"})
+            except Exception:
+                checks.append({"status": "info", "detail": "CPU temp parse error"})
+        else:
+            checks.append({"status": "info", "detail": "lm-sensors not available"})
 
     # 5b. GPU temp
     rc, out, _ = _run(
@@ -353,16 +417,39 @@ def _agent_system(ollama_url: str = "http://localhost:11434") -> dict[str, Any]:
 
     # 5e. Uptime of this Python process
     try:
-        with open("/proc/self/stat") as f:
-            fields = f.read().split()
-        # field 22 = process start time in clock ticks since boot
-        clk = os.sysconf("SC_CLK_TCK")
-        with open("/proc/uptime") as f:
-            boot_sec = float(f.read().split()[0])
-        start_sec = int(fields[21]) / clk
-        uptime_sec = boot_sec - start_sec
-        if uptime_sec < 0:
-            uptime_sec = 0
+        import platform as _plat2
+        if _plat2.system() == "Windows":
+            import ctypes, ctypes.wintypes, time as _time
+            PROCESS_QUERY_INFORMATION = 0x0400
+            kernel32 = ctypes.windll.kernel32
+
+            class _FILETIME(ctypes.Structure):
+                _fields_ = [("dwLowDateTime", ctypes.c_ulong),
+                             ("dwHighDateTime", ctypes.c_ulong)]
+            create_ft = _FILETIME()
+            exit_ft = _FILETIME()
+            kernel_ft = _FILETIME()
+            user_ft = _FILETIME()
+            hproc = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, os.getpid())
+            kernel32.GetProcessTimes(
+                hproc,
+                ctypes.byref(create_ft), ctypes.byref(exit_ft),
+                ctypes.byref(kernel_ft), ctypes.byref(user_ft),
+            )
+            kernel32.CloseHandle(hproc)
+            # FILETIME = 100-nanosecond intervals since 1601-01-01
+            create_100ns = (create_ft.dwHighDateTime << 32) | create_ft.dwLowDateTime
+            # Convert to Unix epoch seconds (offset = 116444736000000000 × 100ns)
+            create_epoch = (create_100ns - 116444736000000000) / 10_000_000
+            uptime_sec = max(0, _time.time() - create_epoch)
+        else:
+            with open("/proc/self/stat") as f:
+                fields = f.read().split()
+            clk = os.sysconf("SC_CLK_TCK")
+            with open("/proc/uptime") as f:
+                boot_sec = float(f.read().split()[0])
+            start_sec = int(fields[21]) / clk
+            uptime_sec = max(0, boot_sec - start_sec)
         h, rem = divmod(int(uptime_sec), 3600)
         m = rem // 60
         checks.append(_ok(f"ARIA process uptime {h}h {m}m"))

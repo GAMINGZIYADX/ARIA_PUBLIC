@@ -344,10 +344,16 @@ def main() -> None:
 """))
 
     print("  To start ARIA:\n")
-    print(f"    {_c(CYAN, 'Web UI (browser):  ')}  bash run-web.sh")
-    print(f"    {_c(CYAN, 'Desktop window:    ')}  python3 launch.py")
-    print(f"    {_c(CYAN, 'Voice only:        ')}  python3 aria.py")
-    print(f"    {_c(CYAN, 'Text only:         ')}  python3 aria.py --text")
+    if sys.platform == "win32":
+        print(f"    {_c(CYAN, 'Web UI (browser):  ')}  python app.py")
+        print(f"    {_c(CYAN, 'Desktop window:    ')}  python launch.py")
+        print(f"    {_c(CYAN, 'Voice only:        ')}  python aria.py")
+        print(f"    {_c(CYAN, 'Text only:         ')}  python aria.py --text")
+    else:
+        print(f"    {_c(CYAN, 'Web UI (browser):  ')}  bash run-web.sh")
+        print(f"    {_c(CYAN, 'Desktop window:    ')}  python3 launch.py")
+        print(f"    {_c(CYAN, 'Voice only:        ')}  python3 aria.py")
+        print(f"    {_c(CYAN, 'Text only:         ')}  python3 aria.py --text")
 
     if cfg.get("SPOTIPY_CLIENT_ID"):
         print(f"\n  {_c(YELLOW, 'Spotify:')} run python3 scripts/spotify_auth.py to authorise.")

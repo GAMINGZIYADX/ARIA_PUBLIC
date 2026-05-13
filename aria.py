@@ -11,20 +11,22 @@ import threading
 
 # Suppress ALSA/JACK warnings on Linux (cosmetic noise from audio backend probing)
 os.environ["PYTHONWARNINGS"] = "ignore"
-os.environ["SDL_AUDIODRIVER"] = "pulseaudio"
-os.environ["JACK_NO_START_SERVER"] = "1"
-os.environ["JACK_NO_AUDIO_RESERVATION"] = "1"
-import ctypes
-ERROR_HANDLER_FUNC = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
-                                       ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
-def _alsa_error_handler(filename, line, function, err, fmt):
-    pass
-_c_alsa_error_handler = ERROR_HANDLER_FUNC(_alsa_error_handler)
-try:
-    asound = ctypes.cdll.LoadLibrary("libasound.so.2")
-    asound.snd_lib_error_set_handler(_c_alsa_error_handler)
-except OSError:
-    pass
+if sys.platform != "win32":
+    os.environ["SDL_AUDIODRIVER"] = "pulseaudio"
+    os.environ["JACK_NO_START_SERVER"] = "1"
+    os.environ["JACK_NO_AUDIO_RESERVATION"] = "1"
+    import ctypes as _ctypes_alsa
+    _ERROR_HANDLER_FUNC = _ctypes_alsa.CFUNCTYPE(
+        None, _ctypes_alsa.c_char_p, _ctypes_alsa.c_int,
+        _ctypes_alsa.c_char_p, _ctypes_alsa.c_int, _ctypes_alsa.c_char_p)
+    def _alsa_error_handler(filename, line, function, err, fmt):
+        pass
+    _c_alsa_error_handler = _ERROR_HANDLER_FUNC(_alsa_error_handler)
+    try:
+        asound = _ctypes_alsa.cdll.LoadLibrary("libasound.so.2")
+        asound.snd_lib_error_set_handler(_c_alsa_error_handler)
+    except OSError:
+        pass
 
 # Redirect stderr briefly during PyAudio import to suppress JACK connection spam
 import io as _io
@@ -62,8 +64,20 @@ WAKE_WORD_THRESHOLD = 0.5  # Detection confidence threshold (0.0-1.0, higher = s
 # TTS Voice (using Aria Neural voice)
 TTS_VOICE = "en-US-AriaNeural"
 
-# Faster-Whisper model (medium model for accuracy with accented English + CUDA support)
-WHISPER_MODEL = "medium"
+# Faster-Whisper model — size auto-selected from GPU VRAM at runtime (see hw_detect.py)
+# Override with WHISPER_MODEL env var if you want to force a specific size.
+WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "")  # empty → auto-detect
+
+# ─────────────────────────────────────────────
+# HARDWARE DETECTION (runs once at startup)
+# ─────────────────────────────────────────────
+import hw_detect as _hw_detect
+_HW = _hw_detect.get_profile()
+_hw_detect.add_llm_warning(_HW, OLLAMA_MODEL)
+
+print(f"  HW: {_hw_detect.summarize(_HW)}", file=sys.stderr)
+if _HW.llm_warning:
+    print(f"  ⚠  LLM warning: {_HW.llm_warning}", file=sys.stderr)
 
 SYSTEM_PROMPT = """You are ARIA. Respond in 1-2 sentences. No filler.
 
@@ -76,23 +90,55 @@ For tools, reply ONLY with JSON:
 Non-tool questions: plain text only, 1-2 sentences."""
 
 # ─────────────────────────────────────────────
-# APP MAPPING
+# APP MAPPING  (platform-aware)
 # ─────────────────────────────────────────────
-APP_MAP = {
-    "brave": "brave-browser",
-    "firefox": "firefox",
-    "chrome": "google-chrome",
-    "google chrome": "google-chrome",
-    "spotify": "spotify",
-    "vscode": "code",
-    "vs code": "code",
-    "code": "code",
-    "terminal": "gnome-terminal",
-    "term": "gnome-terminal",
-    "files": "nautilus",
-    "file manager": "nautilus",
-    "nautilus": "nautilus",
-}
+if sys.platform == "win32":
+    APP_MAP = {
+        "brave": "brave",
+        "firefox": "firefox",
+        "chrome": "chrome",
+        "google chrome": "chrome",
+        "spotify": "spotify",
+        "vscode": "code",
+        "vs code": "code",
+        "code": "code",
+        "terminal": "cmd",
+        "term": "cmd",
+        "powershell": "powershell",
+        "files": "explorer",
+        "file manager": "explorer",
+    }
+elif sys.platform == "darwin":
+    APP_MAP = {
+        "brave": "Brave Browser",
+        "firefox": "Firefox",
+        "chrome": "Google Chrome",
+        "google chrome": "Google Chrome",
+        "spotify": "Spotify",
+        "vscode": "Visual Studio Code",
+        "vs code": "Visual Studio Code",
+        "code": "Visual Studio Code",
+        "terminal": "Terminal",
+        "term": "Terminal",
+        "files": "Finder",
+        "file manager": "Finder",
+    }
+else:  # Linux
+    APP_MAP = {
+        "brave": "brave-browser",
+        "firefox": "firefox",
+        "chrome": "google-chrome",
+        "google chrome": "google-chrome",
+        "spotify": "spotify",
+        "vscode": "code",
+        "vs code": "code",
+        "code": "code",
+        "terminal": "gnome-terminal",
+        "term": "gnome-terminal",
+        "files": "nautilus",
+        "file manager": "nautilus",
+        "nautilus": "nautilus",
+    }
 
 # ─────────────────────────────────────────────
 # TOOLS DEFINITION (OpenAI Function Calling Format)
@@ -193,11 +239,36 @@ def _get_whisper_model():
     with _whisper_lock:
         if whisper_model is not None:
             return whisper_model
-        print("Loading Faster-Whisper (medium/CUDA)...", file=sys.stderr)
-        try:
-            whisper_model = WhisperModel(WHISPER_MODEL, device="cuda", compute_type="float16")
-        except Exception:
-            whisper_model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+
+        import hw_detect as _hw
+        hw = _hw.get_profile()
+
+        # Allow env-var override; otherwise use auto-detected size
+        size    = WHISPER_MODEL or hw.whisper_size
+        device  = hw.whisper_device
+        compute = hw.whisper_compute
+
+        print(f"Loading Faster-Whisper '{size}' on {device.upper()}/{compute}…", file=sys.stderr)
+
+        # Try preferred config first, then progressively lighter fallbacks
+        attempts = [(device, compute, size)]
+        if device == "cuda":
+            # If GPU fails, fall back to CPU with the same size, then tiny
+            attempts += [
+                ("cuda", "int8", size),         # retry with int8 if float16 failed
+                ("cpu",  "int8", size),
+                ("cpu",  "int8", "base"),
+            ]
+        for dev, cmp, sz in dict.fromkeys(map(tuple, attempts)):  # dedup
+            try:
+                whisper_model = WhisperModel(sz, device=dev, compute_type=cmp)
+                print(f"✓ Whisper ready — '{sz}' / {dev.upper()} / {cmp}", file=sys.stderr)
+                break
+            except Exception as exc:
+                print(f"  [{dev}/{cmp}/{sz}] failed: {exc}", file=sys.stderr)
+
+        if whisper_model is None:
+            print("✗ Whisper could not load on any configuration", file=sys.stderr)
     return whisper_model
 
 # OpenWakeWord will be lazily initialized when voice_mode is called (not needed for text_mode)
@@ -233,14 +304,16 @@ pygame.mixer.init()
 def run_open_app(app_name: str) -> str:
     """Launch a desktop application."""
     try:
-        # Normalize app name to lowercase
         app_name_normalized = app_name.lower().strip()
-
-        # Look up the actual command
         cmd = APP_MAP.get(app_name_normalized, app_name_normalized)
 
-        # Launch the app
-        subprocess.Popen([cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if sys.platform == "win32":
+            # shell=True lets Windows resolve executables via PATH
+            subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-a", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.Popen([cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return f"Launching {app_name}..."
     except FileNotFoundError:
         return f"Application '{app_name}' not found on this system."
@@ -251,18 +324,27 @@ def run_open_app(app_name: str) -> str:
 def run_open_url(url: str, browser: str = "default") -> str:
     """Open a URL in a specific browser or default application."""
     try:
-        # Add https:// if no protocol specified
         if not url.startswith(("http://", "https://", "file://")):
             url = "https://" + url
 
         if browser.lower() == "default":
-            # Use default application
-            subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if sys.platform == "win32":
+                os.startfile(url)  # ShellExecute — opens default browser
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
-            # Open in specific browser
             browser_normalized = browser.lower().strip()
             browser_cmd = APP_MAP.get(browser_normalized, browser_normalized)
-            subprocess.Popen([browser_cmd, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if sys.platform == "win32":
+                subprocess.Popen(f"{browser_cmd} {url}", shell=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-a", browser_cmd, url],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.Popen([browser_cmd, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         return f"Opening {url} in {browser}..."
     except Exception as e:
@@ -281,9 +363,13 @@ def run_search_web(query: str, browser: str = "default") -> str:
 def run_play_on_spotify(query: str) -> str:
     """Open Spotify and search for a song/artist."""
     try:
-        # Use Spotify URI scheme for search
         spotify_uri = f"spotify:search:{query.replace(' ', '%20')}"
-        subprocess.Popen(["xdg-open", spotify_uri], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if sys.platform == "win32":
+            os.startfile(spotify_uri)  # ShellExecute handles spotify: URI scheme
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", spotify_uri], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.Popen(["xdg-open", spotify_uri], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return f"Searching Spotify for '{query}'..."
     except Exception as e:
         return f"Error opening Spotify: {e}"
@@ -301,10 +387,10 @@ TOOL_DISPATCH = {
 # ─────────────────────────────────────────────
 # PIPER TTS (fully offline)
 # ─────────────────────────────────────────────
-PIPER_MODEL_DIR = "data/piper"
+PIPER_MODEL_DIR = os.path.join("data", "piper")
 PIPER_MODEL_NAME = "en_US-lessac-medium"
-PIPER_MODEL_PATH = f"{PIPER_MODEL_DIR}/{PIPER_MODEL_NAME}.onnx"
-PIPER_CONFIG_PATH = f"{PIPER_MODEL_DIR}/{PIPER_MODEL_NAME}.onnx.json"
+PIPER_MODEL_PATH = os.path.join(PIPER_MODEL_DIR, f"{PIPER_MODEL_NAME}.onnx")
+PIPER_CONFIG_PATH = os.path.join(PIPER_MODEL_DIR, f"{PIPER_MODEL_NAME}.onnx.json")
 PIPER_MODEL_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
 PIPER_CONFIG_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json"
 
