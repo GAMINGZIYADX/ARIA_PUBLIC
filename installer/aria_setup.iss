@@ -300,14 +300,12 @@ begin
   if not FindPython() then
   begin
     Ans := MsgBox(
-      'Python 3.10 or newer is required but was not found.' + #13#10 +
-      #13#10 +
-      'Click OK to open the Python download page.' + #13#10 +
-      #13#10 +
+      'Python 3.10 or newer is required but was not found.' + #13#10#13#10 +
+      'Click OK to open the Python download page.' + #13#10#13#10 +
       'Installation tips:' + #13#10 +
-      '  • Download Python 3.11 or 3.12 (64-bit).' + #13#10 +
-      '  • On the first installer screen, check "Add Python to PATH".' + #13#10 +
-      '  • After Python installs, re-run this ARIA installer.',
+      '  - Download Python 3.11 or 3.12 (64-bit).' + #13#10 +
+      '  - On the first installer screen, check "Add Python to PATH".' + #13#10 +
+      '  - After Python installs, re-run this ARIA installer.',
       mbInformation, MB_OKCANCEL);
 
     if Ans = IDOK then
@@ -322,10 +320,8 @@ begin
   if not FindOllama() then
   begin
     Ans := MsgBox(
-      'Ollama is required but was not found.' + #13#10 +
-      #13#10 +
-      'Ollama is the local AI engine that powers ARIA''s brain.' + #13#10 +
-      #13#10 +
+      'Ollama is required but was not found.' + #13#10#13#10 +
+      'Ollama is the local AI engine that powers ARIA''s brain.' + #13#10#13#10 +
       'Click OK to open the Ollama download page.' + #13#10 +
       'Install Ollama, then re-run this ARIA installer.',
       mbInformation, MB_OKCANCEL);
