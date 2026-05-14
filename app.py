@@ -247,6 +247,8 @@ def get_whisper_model():
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # ─────────────────────────────────────────────
 # SECRET KEY — auto-generated and persisted if not set in env
@@ -1214,16 +1216,33 @@ else:  # Linux
 
 _gui_env_cache: dict | None = None
 
+# Env vars that GUI subprocesses legitimately need — everything else is stripped
+# to avoid leaking secrets (API keys, tokens, passwords) into child processes.
+_GUI_ENV_ALLOWLIST = {
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL",
+    "DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "XDG_SESSION_TYPE",
+    "XDG_CURRENT_DESKTOP", "DESKTOP_SESSION",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "XAUTHORITY",
+    "PULSE_SERVER", "PIPEWIRE_REMOTE",
+    "LANG", "LC_ALL", "LC_MESSAGES", "LC_CTYPE",
+    "GTK_THEME", "QT_QPA_PLATFORM",
+}
+
 def get_gui_env() -> dict:
-    """Build a GUI-safe environment. Memoized — built once per process, then reused."""
+    """Build a GUI-safe environment. Memoized — built once per process, then reused.
+
+    Only whitelisted vars are included so that secrets present in os.environ
+    (API keys, passwords, tokens) are never forwarded to child processes.
+    """
     global _gui_env_cache
     if _gui_env_cache is not None:
         return _gui_env_cache
 
-    env = dict(os.environ)
+    # Start from a filtered copy — never the full os.environ
+    env = {k: v for k, v in os.environ.items() if k in _GUI_ENV_ALLOWLIST}
 
     if sys.platform == "win32" or sys.platform == "darwin":
-        # Windows/macOS: no X11/Wayland/DBus setup needed
         _gui_env_cache = env
         return env
 
@@ -1263,7 +1282,7 @@ def run_open_app(app_name: str) -> str:
         return f"App '{app_name}' not recognized. Available: {available}"
     try:
         if sys.platform == "win32":
-            subprocess.Popen(cmd_str, shell=True,
+            subprocess.Popen(shlex.split(cmd_str), shell=False,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif sys.platform == "darwin":
             subprocess.Popen(["open", "-a", cmd_str],
@@ -1299,7 +1318,7 @@ def run_open_url(url: str, browser: str = "default") -> str:
         else:
             cmd = APP_MAP.get(browser, browser)
             if sys.platform == "win32":
-                subprocess.Popen(f"{cmd} {url}", shell=True,
+                subprocess.Popen([cmd, url], shell=False,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", "-a", cmd, url],
@@ -2768,31 +2787,77 @@ ALLOWED_COMMANDS = {
 # Patterns blocked regardless of the allowlist — checked case-insensitively
 # against the normalised (collapsed-whitespace) command string
 BLOCKED_PATTERNS = [
+    # Dangerous rm variants
     r"rm\s+-[^\s]*r",       # rm -r, rm -rf, rm -fr, etc.
     r"rm\s+--recursive",    # rm --recursive
+
+    # Privilege escalation / user switching
+    r"\bsudo\b",
+    r"\bsu\b",
+    r"\bdoas\b",
+
+    # Disk / filesystem destruction
     r">\s*/dev/",           # writing to /dev/*
     r"dd\s+if=",            # disk dump
     r"\bmkfs\b",            # format disk
-    r"\bsudo\b",            # no privilege escalation
-    r"\bsu\b",              # no user switching
-    r"\bchmod\b",           # no permission changes
-    r"\bchown\b",           # no ownership changes
-    r"\bpasswd\b",          # no password changes
-    r"\bcrontab\b",         # no cron edits
-    r"\bat\b",              # no scheduled jobs
-    r"\bnc\b",              # netcat
+    r"\bshred\b",           # secure delete
+    r"\bwipefs\b",
+
+    # Permission / ownership / credential changes
+    r"\bchmod\b",
+    r"\bchown\b",
+    r"\bpasswd\b",
+    r"\bchpasswd\b",
+
+    # Scheduled / background job injection
+    r"\bcrontab\b",
+    r"\bat\b",
+    r"\bbatch\b",
+
+    # Network tools that enable reverse shells / data exfiltration
+    r"\bnc\b",
     r"\bncat\b",
     r"\bnetcat\b",
-    r";\s*rm\b",            # chained rm
-    r"\beval\b",            # code injection
+    r"\bsocat\b",
+
+    # Command substitution — allows bypassing the allowlist entirely
+    r"\$\(",                # $(command)
+    r"`",                   # `command`
+
+    # Command chaining — semicolons, logical operators allow stacking commands
+    r";\s*\S",              # cmd; evil
+    r"&&\s*\S",             # cmd && evil
+    r"\|\|\s*\S",           # cmd || evil
+
+    # Code injection
+    r"\beval\b",
     r"\bexec\b",            # process replacement
-    r"base64\s+--decode",   # common obfuscation
-    r"\bpython.*-c\b",      # inline python exec
-    r"\bnode\s+-e\b",       # inline node exec
-    r">\s*/etc/",           # writing to /etc
-    r">\s*/boot/",          # writing to /boot
+    r"\bxargs\b",           # xargs can chain arbitrary commands
+
+    # Obfuscation / encoding tricks
+    r"\bbase64\b",          # any base64 usage (not just --decode)
+    r"\\x[0-9a-f]{2}",     # hex-escaped characters in command strings
+
+    # Inline interpreter execution
+    r"\bpython[23]?\s.*-c\b",  # python -c 'code'
+    r"\bnode\s+-e\b",           # node -e 'code'
+    r"\bperl\s+-e\b",           # perl -e 'code'
+    r"\bruby\s+-e\b",           # ruby -e 'code'
+    r"\bbash\s+-c\b",           # bash -c 'code'
+    r"\bsh\s+-c\b",             # sh -c 'code'
+
+    # Writing to sensitive paths
+    r">\s*/etc/",
+    r">\s*/boot/",
+    r">\s*/sys/",
+    r">\s*/proc/",
+
+    # Sensitive file reads
     r"/etc/passwd",
     r"/etc/shadow",
+    r"/etc/sudoers",
+    r"\.ssh/",              # SSH keys
+    r"\.env\b",             # env file with secrets
 ]
 
 _BLOCKED_RE = [re.compile(p, re.IGNORECASE) for p in BLOCKED_PATTERNS]
@@ -2930,7 +2995,9 @@ def get_llm_response(messages: list, model: str = None, user_message: str = "") 
             }
         return response.choices[0].message.content, usage
     except Exception as e:
-        return f"Error: {str(e)[:200]}", {}
+        # Log internally but don't leak file paths / stack frames to the client
+        print(f"[LLM ERROR] {e}", file=sys.stderr)
+        return "I couldn't reach the language model. Make sure Ollama is running.", {}
 
 
 def get_vision_response(user_message: str, b64_image: str) -> tuple[str, dict]:
@@ -2976,7 +3043,8 @@ def get_vision_response(user_message: str, b64_image: str) -> tuple[str, dict]:
             }
         return response.choices[0].message.content, usage
     except Exception as e:
-        return f"Vision error: {str(e)[:200]}", {}
+        print(f"[VISION ERROR] {e}", file=sys.stderr)
+        return "Vision model unavailable. Make sure Ollama is running with a vision model.", {}
 
 
 # ─────────────────────────────────────────────
@@ -2988,14 +3056,15 @@ def security_headers(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    # Content-Security-Policy — restricts resource loading to same origin.
-    # unsafe-inline required for the inline <script>/<style> blocks in templates.
+    # Content-Security-Policy — restricts resource loading to trusted origins.
+    # unsafe-inline is required for the inline <script>/<style> blocks in templates.
+    # Google Fonts are explicitly allowed because the UI loads them from googleapis.com.
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "img-src 'self' data: https://i.scdn.co; "
-        "font-src 'self'; "
+        "font-src 'self' https://fonts.gstatic.com; "
         "connect-src 'self' blob:; "
         "media-src 'self' blob:; "
         "object-src 'none'; "
