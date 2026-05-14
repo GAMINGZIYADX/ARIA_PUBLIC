@@ -18,3 +18,5 @@ PyQt6
 qtpy
 PyQt6-WebEngine
 ddgs
+edge-tts
+spotipy

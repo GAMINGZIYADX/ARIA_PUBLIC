@@ -657,6 +657,7 @@ def _extract_stated_facts(message: str) -> list:
 
 def observe_turn(user_message: str) -> None:
     """Called after each chat turn — update patterns and write facts to memory."""
+    global _persona_ctx_dirty
     u = _persona["user"]
 
     # Time-of-day pattern
@@ -860,6 +861,7 @@ Only include genuine, specific opinions — not generic statements. Max 3 per tu
 
 def _do_update_opinions(user_message: str, aria_response: str) -> None:
     """LLM call to extract and persist any new/updated opinions. Runs in background thread."""
+    global _self_model_ctx_dirty
     if not client:
         return
     try:
@@ -875,8 +877,8 @@ def _do_update_opinions(user_message: str, aria_response: str) -> None:
             temperature=0.2,
         )
         raw = resp.choices[0].message.content.strip()
-        # Non-greedy match to avoid catastrophic backtracking on multi-brace output
-        m = re.search(r'\{.*?\}', raw, re.DOTALL)
+        # Greedy match to capture the full outermost JSON object (opinions array has nested braces)
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m:
             return
         data = json.loads(m.group())
@@ -962,6 +964,7 @@ Return exactly: {{"add_strength":null,"add_learning":null,"user_impression":null
 
 def _do_self_reflection(user_message: str, aria_response: str) -> None:
     """Run one self-model reflection. Called in a background thread."""
+    global _self_model_ctx_dirty
     if not client:
         return
     sm = _self_model
@@ -3083,7 +3086,7 @@ def security_headers(response):
 @app.route("/favicon.png")
 def favicon():
     return send_file(
-        os.path.join(app.static_folder, "favicon.png"),
+        os.path.join(app.static_folder, "aria_icon.png"),
         mimetype="image/png",
     )
 

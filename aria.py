@@ -37,6 +37,7 @@ try:
 finally:
     sys.stderr = _old_stderr
 
+import asyncio
 import json
 import subprocess
 from openai import OpenAI
