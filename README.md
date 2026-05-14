@@ -253,7 +253,7 @@ WHISPER_MODEL=small python app.py
 - [ ] Multi-agent workflows
 - [ ] Plugin SDK for custom tools
 - [ ] Docker image
-- [ ] Windows installer / Linux AppImage
+- [x] Windows installer / Linux AppImage
 
 ---
 
