@@ -185,32 +185,38 @@ if %errorlevel% neq 0 (
 
 :: =============================================================================
 :: STEP 7 — Create shortcuts
+:: Paths are passed via environment variables so PowerShell reads them
+:: directly — this avoids cmd.exe quote-parsing issues with spaces in paths.
 :: =============================================================================
 echo Creating shortcuts...
 
-:: Desktop shortcut via PowerShell
+set "ARIA_VENV_PY=%VENV%\Scripts\python.exe"
+set "ARIA_APP=%ARIA_DIR%\app.py"
+set "START_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\ARIA"
+
+:: Desktop shortcut (GetFolderPath handles OneDrive / redirected Desktop)
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ws = New-Object -ComObject WScript.Shell; ^
-     $sc = $ws.CreateShortcut([System.IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'ARIA.lnk')); ^
-     $sc.TargetPath  = '%VENV%\Scripts\python.exe'; ^
-     $sc.Arguments   = '\"%ARIA_DIR%\app.py\"'; ^
-     $sc.WorkingDirectory = '%ARIA_DIR%'; ^
-     $sc.Description = 'Launch ARIA voice assistant'; ^
-     $sc.Save()" >nul 2>&1
+    "$ws = New-Object -ComObject WScript.Shell;" ^
+    "$sc = $ws.CreateShortcut(([Environment]::GetFolderPath('Desktop') + '\ARIA.lnk'));" ^
+    "$sc.TargetPath = $env:ARIA_VENV_PY;" ^
+    "$sc.Arguments = '\"' + $env:ARIA_APP + '\"';" ^
+    "$sc.WorkingDirectory = $env:ARIA_DIR;" ^
+    "$sc.Description = 'Launch ARIA voice assistant';" ^
+    "$sc.Save()"
 if %errorlevel% equ 0 (echo    Desktop shortcut created.) else (echo    WARNING: Could not create desktop shortcut.)
 
 :: Start Menu shortcut
-set "START_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\ARIA"
 if not exist "%START_DIR%" mkdir "%START_DIR%"
+set "ARIA_START_LNK=%START_DIR%\ARIA.lnk"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ws = New-Object -ComObject WScript.Shell; ^
-     $sc = $ws.CreateShortcut('%START_DIR%\ARIA.lnk'); ^
-     $sc.TargetPath  = '%VENV%\Scripts\python.exe'; ^
-     $sc.Arguments   = '\"%ARIA_DIR%\app.py\"'; ^
-     $sc.WorkingDirectory = '%ARIA_DIR%'; ^
-     $sc.Description = 'Launch ARIA voice assistant'; ^
-     $sc.Save()" >nul 2>&1
+    "$ws = New-Object -ComObject WScript.Shell;" ^
+    "$sc = $ws.CreateShortcut($env:ARIA_START_LNK);" ^
+    "$sc.TargetPath = $env:ARIA_VENV_PY;" ^
+    "$sc.Arguments = '\"' + $env:ARIA_APP + '\"';" ^
+    "$sc.WorkingDirectory = $env:ARIA_DIR;" ^
+    "$sc.Description = 'Launch ARIA voice assistant';" ^
+    "$sc.Save()"
 if %errorlevel% equ 0 (echo    Start Menu shortcut created.) else (echo    WARNING: Could not create Start Menu shortcut.)
 
 echo.

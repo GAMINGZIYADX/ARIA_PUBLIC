@@ -10,7 +10,6 @@ setlocal EnableDelayedExpansion
 :: =============================================================================
 
 set "ARIA_DIR=%LOCALAPPDATA%\ARIA"
-set "DESKTOP_LNK=%USERPROFILE%\Desktop\ARIA.lnk"
 set "START_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\ARIA"
 
 title ARIA Uninstaller
@@ -40,8 +39,9 @@ echo.
 :: Stop any running ARIA processes
 :: =============================================================================
 echo Stopping ARIA processes...
-:: Kill python.exe processes whose command line references ARIA's app.py
-wmic process where "name='python.exe' and commandline like '%%ARIA%%app.py%%'" delete >nul 2>&1
+:: Kill python.exe processes whose command line references ARIA's app.py.
+:: Uses Get-CimInstance (WMIC replacement, works on Windows 11 24H2+).
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"name='python.exe'\" | Where-Object { $_.CommandLine -like '*ARIA*app.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" >nul 2>&1
 :: Fallback: taskkill by window title set by launch.py (if any)
 taskkill /fi "windowtitle eq ARIA*" /f >nul 2>&1
 echo    Done.
@@ -53,7 +53,7 @@ echo.
 echo Removing %ARIA_DIR% ...
 if exist "%ARIA_DIR%" (
     rd /s /q "%ARIA_DIR%"
-    if %errorlevel% neq 0 (
+    if !errorlevel! neq 0 (
         echo.
         echo  ERROR: Could not fully remove %ARIA_DIR%.
         echo  A file may still be in use. Close ARIA and try again.
@@ -69,14 +69,13 @@ echo.
 
 :: =============================================================================
 :: Remove desktop shortcut
+:: Uses GetFolderPath to handle OneDrive / redirected Desktop folders.
 :: =============================================================================
 echo Removing Desktop shortcut...
-if exist "%DESKTOP_LNK%" (
-    del /f /q "%DESKTOP_LNK%"
-    echo    Removed.
-) else (
-    echo    Not found.
-)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'ARIA.lnk';" ^
+    "if (Test-Path $lnk) { Remove-Item $lnk -Force; Write-Host '   Removed.' }" ^
+    "else { Write-Host '   Not found.' }"
 echo.
 
 :: =============================================================================
