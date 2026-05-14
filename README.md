@@ -142,7 +142,7 @@ The recommended way to install ARIA on Windows 10/11.
 
 **Then run the installer:**
 
-1. Download **`ARIA_Setup.exe`** from the [Releases page](https://github.com/zn200/ARIA_PUBLIC/releases).
+1. Download **[ARIA_Setup.exe](https://github.com/zn200/ARIA_PUBLIC/releases/latest/download/ARIA_Setup.exe)** from the [latest release](https://github.com/zn200/ARIA_PUBLIC/releases/latest).
 2. Double-click it — no admin rights required.
 3. The installer will:
    - Verify Python and Ollama are present (and open the download page if not)
