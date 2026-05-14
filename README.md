@@ -17,11 +17,34 @@ No cloud. No subscriptions. No data leaving your machine.
 
 ---
 
+## Why ARIA?
+
+Most voice assistants depend on cloud APIs, remote servers, and subscriptions. ARIA is different:
+
+- **Private** — nothing is sent to any server. ever.
+- **Local-first** — runs fully on your hardware, even offline
+- **Proactive** — ARIA doesn't just respond, she initiates. news alerts, reminders, unprompted messages
+- **Moddable** — open source, fully hackable, no black boxes
+- **Ownership-oriented** — your assistant, your data, your hardware
+
+Most local AI projects are chat wrappers. ARIA is an actual assistant.
+
+---
+
 ## What is ARIA?
 
-ARIA listens for her wake word, understands your voice, thinks with a local LLM, and responds naturally. She can open apps, search the web, control Spotify, manage your system, hold real conversations — and remembers things across sessions.
+ARIA listens for her wake word, understands your voice, thinks with a local LLM, and responds naturally. She can open apps, search the web, control Spotify, manage your system, and hold real conversations — and remembers things across sessions.
 
-Everything runs on your machine. Built for privacy-first, offline-capable AI.
+Unlike Alexa, Siri, or ChatGPT Voice — ARIA runs entirely on your machine.
+
+| | ARIA | ChatGPT Voice | Alexa | Siri |
+|---|:---:|:---:|:---:|:---:|
+| Fully local | ✅ | ❌ | ❌ | ❌ |
+| Offline capable | ✅ | ❌ | ❌ | ❌ |
+| Open source | ✅ | ❌ | ❌ | ❌ |
+| Proactive behavior | ✅ | ❌ | ⚠️ | ❌ |
+| Persistent memory | ✅ | ❌ | ⚠️ | ❌ |
+| Custom tools | ✅ | ❌ | ⚠️ | ❌ |
 
 ---
 
@@ -42,22 +65,39 @@ Everything runs on your machine. Built for privacy-first, offline-capable AI.
 | 🔒 | **Password Lock** | Optional lock screen to protect your instance |
 | 🖥️ | **Web UI** | Flask dashboard with chat, bash execution, and file viewer |
 
+> **Offline vs Online:** Core assistant features (wake word, STT, LLM, TTS, memory) work fully offline. Optional features like Spotify, web search, and Edge-TTS require internet access.
+
+---
+
+## Example Commands
+
+```
+"ARIA, open Spotify"
+"ARIA, what's the latest news?"
+"ARIA, pause the music"
+"ARIA, remember that my server IP is 10.0.0.5"
+"ARIA, take a screenshot"
+"ARIA, set volume to 40"
+"ARIA, search for Python async tutorials"
+"ARIA, run diagnostics"
+```
+
 ---
 
 ## Architecture
 
-```
-Microphone
-  └─► Wake Word Detection  (OpenWakeWord — offline)
-        └─► Speech-to-Text  (faster-whisper — CUDA)
-              └─► Local LLM  (Ollama / Qwen 2.5)
-                    └─► Tool Router
-                          ├─ System controls
-                          ├─ App / URL launcher
-                          ├─ Spotify
-                          ├─ Web search
-                          └─► Text-to-Speech  (Piper / Edge-TTS)
-                                └─► Speaker
+```mermaid
+graph TD
+    A[🎤 Microphone] --> B[Wake Word Detection\nOpenWakeWord]
+    B --> C[Speech-to-Text\nfaster-whisper CUDA]
+    C --> D[Local LLM\nOllama / Qwen 2.5]
+    D --> E[Tool Router]
+    E --> F[System Controls]
+    E --> G[App / URL Launcher]
+    E --> H[Spotify]
+    E --> I[Web Search]
+    E --> J[🔊 Text-to-Speech\nPiper / Edge-TTS]
+    J --> K[Speaker]
 ```
 
 ---
@@ -74,7 +114,7 @@ cd ARIA_PUBLIC
 # 2. Run setup (creates .env, installs dependencies, checks Ollama)
 python setup.py
 
-# 3. Pull a model (if you haven't already)
+# 3. Pull a model
 ollama pull qwen2.5:7b
 
 # 4. Launch
@@ -87,17 +127,23 @@ Then open **http://localhost:5000** in your browser.
 
 ---
 
-## VRAM Guide
+## Hardware Requirements
 
-ARIA auto-detects your GPU and picks the right Whisper model. For the LLM:
+**Recommended:**
+- NVIDIA GPU with 8 GB+ VRAM (for real-time STT + LLM)
+- 16 GB RAM
+- SSD storage (model load times are significantly faster)
 
-| VRAM | Recommended Model |
-|---|---|
-| 4 GB | `ollama pull qwen2.5:3b` |
-| 8 GB | `ollama pull qwen2.5:7b` |
-| 12 GB+ | `ollama pull qwen2.5:14b` |
+**VRAM Guide:**
 
-No GPU? ARIA falls back to CPU mode automatically (slower but functional).
+| VRAM | Whisper Model (auto) | Recommended LLM |
+|---|---|---|
+| No GPU | tiny (CPU) | `qwen2.5:3b` |
+| 4 GB | small | `qwen2.5:3b` |
+| 8 GB | medium | `qwen2.5:7b` |
+| 12 GB+ | medium (float16) | `qwen2.5:14b` |
+
+ARIA detects your GPU at startup and selects the right configuration automatically.
 
 ---
 
@@ -128,10 +174,24 @@ ARIA_PASSWORD=            # optional lock screen
 TTS_VOICE=en-GB-SoniaNeural
 ```
 
-You can also override Whisper model size at runtime:
+Override Whisper model at runtime:
 ```bash
 WHISPER_MODEL=small python app.py
 ```
+
+> ⚠️ **Security note:** Bash execution is a powerful feature and should only be enabled on trusted local machines. ARIA can execute system commands — treat her accordingly.
+
+---
+
+## Roadmap
+
+- [ ] Vision support (describe what's on screen)
+- [ ] Local RAG memory (query your own documents)
+- [ ] Home Assistant integration
+- [ ] Multi-agent workflows
+- [ ] Plugin SDK for custom tools
+- [ ] Docker image
+- [ ] Windows installer / Linux AppImage
 
 ---
 
