@@ -127,6 +127,68 @@ Then open **http://localhost:5000** in your browser.
 
 ---
 
+## Installation
+
+### Windows — Installer (.exe)
+
+The recommended way to install ARIA on Windows 10/11.
+
+**Before you start, install these two prerequisites:**
+
+| Prerequisite | Download | Notes |
+|---|---|---|
+| Python 3.11 or 3.12 (64-bit) | [python.org/downloads](https://www.python.org/downloads/) | Check **"Add Python to PATH"** during install |
+| Ollama | [ollama.com/download](https://ollama.com/download) | Required for the local LLM |
+
+**Then run the installer:**
+
+1. Download **`ARIA_Setup.exe`** from the [Releases page](https://github.com/zn200/ARIA_PUBLIC/releases).
+2. Double-click it — no admin rights required.
+3. The installer will:
+   - Verify Python and Ollama are present (and open the download page if not)
+   - Copy ARIA to `%LocalAppData%\ARIA`
+   - Create a Python virtual environment and install all dependencies
+   - Pull `qwen2.5:7b` via Ollama (~4.7 GB download)
+   - Run the interactive configuration wizard (`setup.py`)
+   - Create a **Desktop shortcut** and **Start Menu entry**
+4. On the final screen, tick **"Launch ARIA now"** to open the web UI immediately.
+
+---
+
+### Windows — Fallback (install.bat)
+
+For environments where you cannot run unsigned `.exe` files (e.g. managed corporate machines). Requires the full repo to be present locally.
+
+```bat
+git clone https://github.com/zn200/ARIA_PUBLIC.git
+cd ARIA_PUBLIC\installer
+install.bat
+```
+
+`install.bat` performs the same steps as the graphical installer: copies files, creates a venv, installs packages, pulls the model, runs `setup.py`, and creates shortcuts.
+
+**To uninstall** (bat install only):
+
+```bat
+installer\uninstall.bat
+```
+
+> If you used the `.exe` installer, uninstall through **Windows Settings → Apps → ARIA**.
+
+---
+
+### Build the installer yourself
+
+Requires [Inno Setup 6.3+](https://jrsoftware.org/isinfo.php).
+
+```bat
+iscc installer\aria_setup.iss
+```
+
+Output: `installer\dist\ARIA_Setup.exe`
+
+---
+
 ## Hardware Requirements
 
 **Recommended:**
