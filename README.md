@@ -17,6 +17,16 @@ No cloud. No subscriptions. No data leaving your machine.
 
 ---
 
+## Windows
+
+ARIA was developed on Linux but is **fully Windows-compatible** as of commit [`de5ed62`](https://github.com/zn200/ARIA_PUBLIC/commit/de5ed62). All Linux-specific subsystems (audio, clipboard, notifications, system controls) have Windows equivalents wired in, and the app handles a missing or corrupted Whisper cache gracefully on first run.
+
+For a step-by-step manual install — prerequisites, venv setup, `.env` configuration, Whisper cache fixes, and a full troubleshooting section — see the **[Windows Setup Guide](docs/WINDOWS_SETUP.md)**.
+
+> **Quickest path:** install Python 3.11+, Ollama, and Git — then `git clone`, `pip install -r requirements.txt`, and `python app.py`. A default `.env` (password: `aria`) is created automatically on first launch.
+
+---
+
 ## Why ARIA?
 
 Most voice assistants depend on cloud APIs, remote servers, and subscriptions. ARIA is different:
