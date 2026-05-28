@@ -198,53 +198,78 @@ def get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
         try:
-            from faster_whisper import WhisperModel
-        except ImportError:
-            print("✗ faster-whisper not installed — run: pip install faster-whisper", file=sys.stderr)
-            return None
-
-        # Preload cublas so ctranslate2 can find it before attempting GPU
-        _preload_cublas()
-
-        # Build attempt list from hardware profile
-        import hw_detect as _hw
-        hw = _hw.get_profile()
-        size    = os.environ.get("WHISPER_MODEL") or hw.whisper_size
-        device  = hw.whisper_device
-        compute = hw.whisper_compute
-
-        # Primary attempt + progressively lighter fallbacks
-        raw_attempts: list[tuple[str, str, str]] = [(device, compute, size)]
-        if device == "cuda":
-            raw_attempts += [
-                ("cuda", "int8", size),   # retry with int8 if float16 failed
-                ("cpu",  "int8", size),
-                ("cpu",  "int8", "base"),
-            ]
-
-        # Deduplicate while preserving order
-        seen: set[tuple[str, str, str]] = set()
-        attempts: list[tuple[str, str, str]] = []
-        for a in raw_attempts:
-            if a not in seen:
-                seen.add(a)
-                attempts.append(a)
-
-        print(f"  Whisper: loading '{size}' on {device.upper()}/{compute}…", file=sys.stderr)
-        for dev, cmp, sz in attempts:
             try:
-                _whisper_model = WhisperModel(sz, device=dev, compute_type=cmp)
-                print(f"✓ Whisper STT ready — '{sz}' / {dev.upper()} / {cmp}", file=sys.stderr)
-                break
-            except Exception as e:
-                print(f"  [{dev}/{cmp}/{sz}] failed: {e}", file=sys.stderr)
+                from faster_whisper import WhisperModel
+            except ImportError:
+                print("✗ faster-whisper not installed — run: pip install faster-whisper", file=sys.stderr)
+                return None
 
-        if _whisper_model is None:
-            print("✗ Whisper could not load on any configuration", file=sys.stderr)
+            # Preload cublas so ctranslate2 can find it before attempting GPU
+            _preload_cublas()
+
+            # Build attempt list from hardware profile
+            import hw_detect as _hw
+            hw = _hw.get_profile()
+            size    = os.environ.get("WHISPER_MODEL") or hw.whisper_size
+            device  = hw.whisper_device
+            compute = hw.whisper_compute
+
+            # Primary attempt + progressively lighter fallbacks
+            raw_attempts: list[tuple[str, str, str]] = [(device, compute, size)]
+            if device == "cuda":
+                raw_attempts += [
+                    ("cuda", "int8", size),   # retry with int8 if float16 failed
+                    ("cpu",  "int8", size),
+                    ("cpu",  "int8", "base"),
+                ]
+
+            # Deduplicate while preserving order
+            seen: set[tuple[str, str, str]] = set()
+            attempts: list[tuple[str, str, str]] = []
+            for a in raw_attempts:
+                if a not in seen:
+                    seen.add(a)
+                    attempts.append(a)
+
+            print(f"  Whisper: loading '{size}' on {device.upper()}/{compute}…", file=sys.stderr)
+            for dev, cmp, sz in attempts:
+                try:
+                    _whisper_model = WhisperModel(sz, device=dev, compute_type=cmp)
+                    print(f"✓ Whisper STT ready — '{sz}' / {dev.upper()} / {cmp}", file=sys.stderr)
+                    break
+                except Exception as e:
+                    print(f"  [{dev}/{cmp}/{sz}] failed: {e}", file=sys.stderr)
+
+            if _whisper_model is None:
+                print("✗ Whisper could not load on any configuration", file=sys.stderr)
+        except Exception as e:
+            print(f"✗ Whisper initialization failed: {e} — STT will be unavailable", file=sys.stderr)
+            _whisper_model = None
     return _whisper_model
 
+# Create a default .env if one doesn't exist so the app always has sane defaults.
+_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+if not os.path.exists(_ENV_PATH):
+    _DEFAULT_ENV = (
+        "ARIA_PASSWORD=aria\n"
+        "OLLAMA_URL=http://127.0.0.1:11434/v1\n"
+        "OLLAMA_MODEL=qwen2.5:7b\n"
+        "SKIP_AUTH=0\n"
+    )
+    try:
+        with open(_ENV_PATH, "w") as _f:
+            _f.write(_DEFAULT_ENV)
+        print("=" * 60, file=sys.stderr)
+        print("  ARIA created a default .env file at:", file=sys.stderr)
+        print(f"  {_ENV_PATH}", file=sys.stderr)
+        print("  Default password is: aria", file=sys.stderr)
+        print("  Edit .env to change your password and settings.", file=sys.stderr)
+        print("=" * 60, file=sys.stderr)
+    except Exception as _e:
+        print(f"  Warning: could not create .env: {_e}", file=sys.stderr)
+
 # Load environment variables from the project root .env, regardless of cwd.
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+load_dotenv(dotenv_path=_ENV_PATH)
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -283,10 +308,19 @@ if not ARIA_PASSWORD:
     print(f"  Add  ARIA_PASSWORD=yourpassword  to .env to make it permanent", file=sys.stderr)
     print(f"{'='*60}\n", file=sys.stderr)
 
+# SKIP_AUTH=1 in .env bypasses login entirely — every session is auto-authenticated.
+SKIP_AUTH = os.environ.get("SKIP_AUTH", "0") == "1"
+
 def require_auth(f):
     """Decorator — redirects to /login if session is not authenticated."""
     @wraps(f)
     def decorated(*args, **kwargs):
+        if SKIP_AUTH:
+            if not session.get("authenticated"):
+                session["authenticated"] = True
+                session["csrf_token"]    = secrets.token_hex(32)
+                session["last_active"]   = datetime.now().timestamp()
+            return f(*args, **kwargs)
         if not session.get("authenticated"):
             if request.path.startswith("/api/"):
                 return jsonify({"error": "Unauthorized"}), 401
@@ -3085,16 +3119,21 @@ def security_headers(response):
 @app.route("/favicon.ico")
 @app.route("/favicon.png")
 def favicon():
-    return send_file(
-        os.path.join(app.static_folder, "aria_icon.png"),
-        mimetype="image/png",
-    )
+    icon_path = os.path.join(app.static_folder, "aria_icon.png")
+    if not os.path.exists(icon_path):
+        return ("", 204)
+    return send_file(icon_path, mimetype="image/png")
 
 
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
 def login():
     """Password login page."""
+    if SKIP_AUTH:
+        session["authenticated"] = True
+        session["csrf_token"]    = secrets.token_hex(32)
+        session["last_active"]   = datetime.now().timestamp()
+        return redirect(url_for("index"))
     error = None
     if request.method == "POST":
         submitted = request.form.get("password", "")
@@ -3114,6 +3153,11 @@ def login():
 @limiter.limit("10 per minute")
 def api_login():
     """JSON login endpoint — used by the animated login flow."""
+    if SKIP_AUTH:
+        session["authenticated"] = True
+        session["csrf_token"]    = secrets.token_hex(32)
+        session["last_active"]   = datetime.now().timestamp()
+        return jsonify({"success": True})
     data = request.get_json(silent=True) or {}
     submitted = data.get("password", "")
     if hmac.compare_digest(submitted, ARIA_PASSWORD):
