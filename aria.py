@@ -7,6 +7,7 @@ Powered by Ollama + Faster-Whisper (CUDA) + OpenWakeWord + TTS
 import os
 import sys
 import time
+import tempfile
 import threading
 
 # Suppress ALSA/JACK warnings on Linux (cosmetic noise from audio backend probing)

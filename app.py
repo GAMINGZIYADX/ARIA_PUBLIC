@@ -378,7 +378,7 @@ CORS(app, origins=["http://localhost:5000", "http://127.0.0.1:5000"])
 # ─────────────────────────────────────────────
 OLLAMA_URL          = os.environ.get("OLLAMA_URL",          "http://127.0.0.1:11434/v1")
 OLLAMA_MODEL        = os.environ.get("OLLAMA_MODEL",        "qwen2.5:14b")
-OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "gemma4:e4b")
+OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "gemma3:4b")
 _ENV_PATH           = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 # Host-only base used for Ollama's native REST API (e.g. /api/tags).
 # Derived from OLLAMA_URL so a single env var controls both.

@@ -52,8 +52,8 @@ TOPIC_FEEDS: dict[str, list[tuple[str, str]]] = {
         ("Al Jazeera",      "https://www.aljazeera.com/xml/rss/all.xml"),
     ],
     "world": [
-        ("BBC World",  "http://feeds.bbci.co.uk/news/world/rss.xml"),
-        ("Reuters",    "https://feeds.reuters.com/reuters/topNews"),
+        ("BBC World",    "http://feeds.bbci.co.uk/news/world/rss.xml"),
+        ("The Guardian", "https://www.theguardian.com/world/rss"),
     ],
 }
 
