@@ -392,6 +392,7 @@ OLLAMA_HOST    = f"{_parsed_ollama.scheme}://{_parsed_ollama.netloc}"  # http://
 DATA_DIR    = os.path.join(os.path.dirname(__file__), "data")
 MEM_FILE    = os.path.join(DATA_DIR, "memory.json")
 CONV_FILE   = os.path.join(DATA_DIR, "conversations.json")
+CONV_META_FILE = os.path.join(DATA_DIR, "conversations_meta.json")  # {session_id: last_active_epoch}
 AUDIT_LOG   = os.path.join(DATA_DIR, "audit.log")
 PALACE_DIR  = os.path.join(DATA_DIR, "palace")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -1121,12 +1122,37 @@ def _self_reflect_bg(user_message: str, aria_response: str) -> None:
 MAX_HISTORY  = 20   # keep last 20 messages (10 exchanges) — enough context, fewer tokens
 MAX_SESSIONS = 50   # cap on in-memory cached sessions — oldest evicted (LRU)
 
+# On-disk retention — conversations.json otherwise grows by one entry per
+# session_id forever. Message dicts carry no timestamps, so last activity is
+# tracked per session in CONV_META_FILE.
+CONV_MAX_AGE_DAYS = 30    # sessions idle longer than this are pruned
+MAX_DISK_SESSIONS = 200   # hard cap regardless of age — oldest pruned first
+
 # Guards the read-modify-write of conversations.json — without it, two
 # background _write threads (or a concurrent /api/clear) lose each other's updates.
 _conv_lock = threading.Lock()
 
 def _all_conversations() -> dict:
     return _load_json(CONV_FILE, {})
+
+def _prune_conversations(all_conv: dict, meta: dict) -> None:
+    """Drop stale sessions from both dicts in place. Caller holds _conv_lock.
+
+    A session is stale when idle past CONV_MAX_AGE_DAYS, or when the file
+    holds more than MAX_DISK_SESSIONS (oldest evicted first). Sessions with
+    no recorded activity (files predating CONV_META_FILE) are stamped as
+    active now rather than guessed at — the hard cap still bounds them.
+    """
+    now    = datetime.now().timestamp()
+    cutoff = now - CONV_MAX_AGE_DAYS * 86400
+    for sid in all_conv:
+        meta.setdefault(sid, now)
+    for sid in [s for s in meta if s not in all_conv]:
+        del meta[sid]
+    for sid in sorted(all_conv, key=lambda s: meta[s]):   # oldest first
+        if meta[sid] < cutoff or len(all_conv) > MAX_DISK_SESSIONS:
+            del all_conv[sid]
+            del meta[sid]
 
 def load_conversation(session_id: str) -> list:
     """Load conversation history from disk for a session."""
@@ -1152,10 +1178,32 @@ def save_conversation(session_id: str, messages: list) -> None:
     def _write():
         with _conv_lock:
             all_conv = _all_conversations()
+            meta     = _load_json(CONV_META_FILE, {})
             all_conv[session_id] = trimmed
+            meta[session_id]     = datetime.now().timestamp()
+            _prune_conversations(all_conv, meta)
             _save_json(CONV_FILE, all_conv)
+            _save_json(CONV_META_FILE, meta)
 
     threading.Thread(target=_write, daemon=True).start()
+
+def _prune_conversations_on_disk() -> None:
+    """One-shot startup cleanup of conversations.json grown before this run."""
+    try:
+        with _conv_lock:
+            all_conv = _all_conversations()
+            meta     = _load_json(CONV_META_FILE, {})
+            before   = len(all_conv)
+            _prune_conversations(all_conv, meta)
+            _save_json(CONV_FILE, all_conv)
+            _save_json(CONV_META_FILE, meta)
+        if len(all_conv) < before:
+            print(f"✓ Pruned {before - len(all_conv)} stale conversation(s) from disk",
+                  file=sys.stderr)
+    except Exception as e:
+        print(f"✗ Conversation cleanup failed: {e}", file=sys.stderr)
+
+_prune_conversations_on_disk()
 
 # Better models for coding:
 # - DeepSeek Coder 7B: deepseek-coder:7b (excellent for code)
@@ -3885,8 +3933,11 @@ def clear_session():
     # Remove from disk too
     with _conv_lock:
         all_conv = _all_conversations()
+        meta     = _load_json(CONV_META_FILE, {})
         all_conv.pop(session_id, None)
+        meta.pop(session_id, None)
         _save_json(CONV_FILE, all_conv)
+        _save_json(CONV_META_FILE, meta)
     return jsonify({"success": True, "session_id": session_id})
 
 
