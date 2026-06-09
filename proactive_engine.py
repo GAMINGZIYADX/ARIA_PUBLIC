@@ -54,12 +54,13 @@ class ProactiveEngine:
     ACTIVE_END     = 24     # active hours end (midnight = 0h next day)
 
     def __init__(self, client, model: str, memory_ref: dict, memory_file: str,
-                 persona_ref: dict):
+                 persona_ref: dict, save_fn=None):
         self._client       = client
         self._model        = model
         self._memory       = memory_ref    # live _memory dict from app.py
         self._mem_file     = memory_file
         self._persona      = persona_ref   # live _persona dict from app.py
+        self._save_fn      = save_fn       # shared atomic writer (app._save_json)
         self._lock         = threading.Lock()
 
         self._last_interaction: float = datetime.now().timestamp()
@@ -239,13 +240,18 @@ class ProactiveEngine:
         for d in old_days:
             del log[d]
         # Async write — best effort
-        import json as _json, threading as _t
+        import threading as _t
         def _write():
             try:
-                tmp = self._mem_file + ".tmp"
-                with open(tmp, "w") as f:
+                if self._save_fn is not None:
+                    # Shared writer serializes with app.py's own memory.json saves
+                    self._save_fn(self._mem_file, self._memory)
+                    return
+                import json as _json, os as _os, tempfile as _tf
+                fd, tmp = _tf.mkstemp(dir=_os.path.dirname(self._mem_file) or ".",
+                                      suffix=".tmp")
+                with _os.fdopen(fd, "w") as f:
                     _json.dump(self._memory, f, indent=2)
-                import os as _os
                 _os.replace(tmp, self._mem_file)
             except Exception:
                 pass

@@ -19,6 +19,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from datetime import datetime, timedelta
+from collections import OrderedDict
 from functools import wraps
 from dotenv import load_dotenv
 
@@ -417,11 +418,35 @@ def _load_json(path: str, default):
     except (OSError, json.JSONDecodeError):
         return default
 
+# Per-file write locks — concurrent threads saving the same file would
+# otherwise truncate each other's shared <path>.tmp mid-write.
+_save_locks: dict = {}
+_save_locks_guard = threading.Lock()
+
+def _file_lock(path: str) -> threading.Lock:
+    with _save_locks_guard:
+        lock = _save_locks.get(path)
+        if lock is None:
+            lock = _save_locks[path] = threading.Lock()
+        return lock
+
 def _save_json(path: str, data) -> None:
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-    os.replace(tmp, path)   # atomic write
+    with _file_lock(path):
+        fd, tmp = tempfile.mkstemp(
+            dir=os.path.dirname(path) or ".",
+            prefix=os.path.basename(path) + ".",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp, path)   # atomic write
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
 # facts: {key: {value, ts}}   — persist across restarts
 _memory = _load_json(MEM_FILE, {"facts": {}})
@@ -520,6 +545,18 @@ def _palace_embed_fact(key: str, value: str, ts: str) -> None:
 
 
 _mem_ctx_cache: dict = {}   # {query_hash: (context_str, expires_at)}
+_mem_ctx_lock = threading.Lock()
+MAX_MEM_CTX_ENTRIES = 128   # hard cap — entries expire in seconds but were never deleted
+
+def _mem_ctx_put(qkey: str, ctx: str, ttl: float = 8) -> None:
+    """Cache a built context, pruning expired entries so the dict stays bounded."""
+    now = datetime.now().timestamp()
+    with _mem_ctx_lock:
+        for k in [k for k, (_, exp) in _mem_ctx_cache.items() if exp <= now]:
+            del _mem_ctx_cache[k]
+        if len(_mem_ctx_cache) >= MAX_MEM_CTX_ENTRIES:
+            _mem_ctx_cache.clear()   # everything left expires within ttl anyway
+        _mem_ctx_cache[qkey] = (ctx, now + ttl)
 
 def build_memory_context(query: str = "") -> str:
     """Return a memory block to prepend to the system prompt.
@@ -532,7 +569,8 @@ def build_memory_context(query: str = "") -> str:
     """
     import hashlib as _hl
     qkey = _hl.md5(query.encode()).hexdigest()
-    cached = _mem_ctx_cache.get(qkey)
+    with _mem_ctx_lock:
+        cached = _mem_ctx_cache.get(qkey)
     if cached:
         ctx, exp = cached
         if datetime.now().timestamp() < exp:
@@ -582,7 +620,7 @@ def build_memory_context(query: str = "") -> str:
             pass
 
     if not lines and not palace_snippets:
-        _mem_ctx_cache[qkey] = ("", datetime.now().timestamp() + 8)
+        _mem_ctx_put(qkey, "")
         return ""
 
     out = "\n\n## PRIOR SESSION ACTIONS (conversation history only — NOT live system state)\n"
@@ -592,7 +630,7 @@ def build_memory_context(query: str = "") -> str:
         if lines:
             out += "\n\n"
         out += "### Relevant past exchanges:\n" + "\n---\n".join(palace_snippets)
-    _mem_ctx_cache[qkey] = (out, datetime.now().timestamp() + 8)
+    _mem_ctx_put(qkey, out)
     return out
 
 # ─────────────────────────────────────────────
@@ -1080,7 +1118,12 @@ def _self_reflect_bg(user_message: str, aria_response: str) -> None:
 # ─────────────────────────────────────────────
 # CONVERSATION PERSISTENCE
 # ─────────────────────────────────────────────
-MAX_HISTORY = 20   # keep last 20 messages (10 exchanges) — enough context, fewer tokens
+MAX_HISTORY  = 20   # keep last 20 messages (10 exchanges) — enough context, fewer tokens
+MAX_SESSIONS = 50   # cap on in-memory cached sessions — oldest evicted (LRU)
+
+# Guards the read-modify-write of conversations.json — without it, two
+# background _write threads (or a concurrent /api/clear) lose each other's updates.
+_conv_lock = threading.Lock()
 
 def _all_conversations() -> dict:
     return _load_json(CONV_FILE, {})
@@ -1090,6 +1133,13 @@ def load_conversation(session_id: str) -> list:
     all_conv = _all_conversations()
     return all_conv.get(session_id, [])
 
+def _cache_conversation(session_id: str, messages: list) -> None:
+    """Update the in-memory cache, LRU-evicting beyond MAX_SESSIONS."""
+    conversations[session_id] = messages
+    conversations.move_to_end(session_id)
+    while len(conversations) > MAX_SESSIONS:
+        conversations.popitem(last=False)
+
 def save_conversation(session_id: str, messages: list) -> None:
     """Persist conversation history to disk, trimming to MAX_HISTORY.
     Disk write is async — never blocks the response path.
@@ -1097,12 +1147,13 @@ def save_conversation(session_id: str, messages: list) -> None:
     system = [m for m in messages if m["role"] == "system"][:1]
     rest   = [m for m in messages if m["role"] != "system"]
     trimmed = system + rest[-MAX_HISTORY:]
-    conversations[session_id] = trimmed  # keep in-memory cache current
+    _cache_conversation(session_id, trimmed)  # keep in-memory cache current
 
     def _write():
-        all_conv = _all_conversations()
-        all_conv[session_id] = trimmed
-        _save_json(CONV_FILE, all_conv)
+        with _conv_lock:
+            all_conv = _all_conversations()
+            all_conv[session_id] = trimmed
+            _save_json(CONV_FILE, all_conv)
 
     threading.Thread(target=_write, daemon=True).start()
 
@@ -2468,9 +2519,10 @@ def parse_thinking(text: str) -> tuple[str, str]:
 # ─────────────────────────────────────────────
 
 # In-memory per-conversation state (keyed by session_id, reset on server restart)
-_proactive_sessions: dict = {}
+_proactive_sessions: OrderedDict = OrderedDict()
 
 PROACTIVE_COOLDOWN = 600   # minimum seconds between two proactive messages
+MAX_PROACTIVE_SESSIONS = 100   # LRU cap — oldest session state evicted beyond this
 
 def _get_ps(session_id: str) -> dict:
     """Return (creating if needed) the per-session proactive state dict."""
@@ -2483,6 +2535,9 @@ def _get_ps(session_id: str) -> dict:
             "last_fired_time":  0,    # timestamp of last proactive shown
             "fired":            set(),# set of trigger IDs already shown
         }
+    _proactive_sessions.move_to_end(session_id)
+    while len(_proactive_sessions) > MAX_PROACTIVE_SESSIONS:
+        _proactive_sessions.popitem(last=False)
     return _proactive_sessions[session_id]
 
 
@@ -2661,8 +2716,9 @@ except Exception as e:
 # Server start time — used for uptime reporting in /api/health
 _start_time = datetime.now()
 
-# In-memory conversation cache (also persisted to data/conversations.json)
-conversations = {}
+# In-memory conversation cache (also persisted to data/conversations.json).
+# OrderedDict so _cache_conversation can LRU-evict beyond MAX_SESSIONS.
+conversations: OrderedDict = OrderedDict()
 
 # ─────────────────────────────────────────────
 # PROACTIVE ENGINE
@@ -2680,6 +2736,7 @@ if client:
             memory_ref=_memory,
             memory_file=MEM_FILE,
             persona_ref=_persona,
+            save_fn=_save_json,
         )
         print("✓ Proactive engine ready", file=sys.stderr)
     except Exception as _pe:
@@ -3396,9 +3453,9 @@ def chat():
         # messages have context about what was discussed.
         if session_id not in conversations:
             saved = load_conversation(session_id)
-            conversations[session_id] = saved if saved else [
+            _cache_conversation(session_id, saved if saved else [
                 {"role": "system", "content": SYSTEM_PROMPT}
-            ]
+            ])
         conversations[session_id].append(
             {"role": "user", "content": f"[Vision query] {user_message}"}
         )
@@ -3425,10 +3482,9 @@ def chat():
     if session_id not in conversations:
         # Try to restore from disk first
         saved = load_conversation(session_id)
-        if saved:
-            conversations[session_id] = saved
-        else:
-            conversations[session_id] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        _cache_conversation(session_id, saved if saved else [
+            {"role": "system", "content": SYSTEM_PROMPT}
+        ])
 
     # Refresh the system message with latest memory + persona + self-model context each turn
     mem_ctx        = build_memory_context(user_message)
@@ -3825,11 +3881,12 @@ def set_model():
 def clear_session():
     """Clear conversation history for a session (memory + disk)."""
     session_id = request.json.get("session_id", "default")
-    conversations[session_id] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    _cache_conversation(session_id, [{"role": "system", "content": SYSTEM_PROMPT}])
     # Remove from disk too
-    all_conv = _all_conversations()
-    all_conv.pop(session_id, None)
-    _save_json(CONV_FILE, all_conv)
+    with _conv_lock:
+        all_conv = _all_conversations()
+        all_conv.pop(session_id, None)
+        _save_json(CONV_FILE, all_conv)
     return jsonify({"success": True, "session_id": session_id})
 
 
