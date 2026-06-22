@@ -3,309 +3,127 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ARIA · Login</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <title>ARIA · Unlock</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='aria_icon.svg') }}">
-
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --cyan:        #00f5ff;
-      --cyan-dim:    rgba(0, 245, 255, 0.55);
-      --cyan-glow:   rgba(0, 245, 255, 0.18);
-      --cyan-faint:  rgba(0, 245, 255, 0.07);
-      --purple:      #a855f7;
-      --red:         #ff5252;
-      --bg:          #0a0a0f;
-      --bg-2:        #11111a;
-      --line:        rgba(0, 245, 255, 0.12);
-      --line-strong: rgba(0, 245, 255, 0.28);
-      --text:        #e6e7ee;
-      --text-dim:    #8b8da3;
-      --text-faint:  #5a5c72;
-      --mono:        'JetBrains Mono', monospace;
-      --display:     'Rajdhani', sans-serif;
-      --sans:        'Inter', sans-serif;
+      --bg: #0d0d0f; --surface: #141416; --surface-2: #1a1a1f;
+      --accent: #6c63ff; --accent-hover: #7d75ff;
+      --text: #f0f0f2; --text-muted: #8a8a96; --text-faint: #5d5d68;
+      --border: rgba(255,255,255,0.07); --border-strong: rgba(255,255,255,0.12);
+      --err: #e5675f;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
     }
-
-    html, body {
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
       min-height: 100vh;
       background: var(--bg);
       color: var(--text);
-      font-family: var(--sans);
-      -webkit-font-smoothing: antialiased;
-      overflow: hidden;
-    }
-
-    /* ── Background ── */
-    .bg-grid {
-      position: fixed; inset: 0;
-      background-image:
-        linear-gradient(rgba(0, 245, 255, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 245, 255, 0.04) 1px, transparent 1px);
-      background-size: 48px 48px;
-      mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 80%);
-      pointer-events: none; z-index: 0;
-    }
-    .bg-vignette {
-      position: fixed; inset: 0;
-      background: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 30%, rgba(0,0,0,0.65) 90%);
-      pointer-events: none; z-index: 0;
-    }
-    .bg-aurora {
-      position: fixed; inset: 0;
-      background:
-        radial-gradient(ellipse 60% 50% at 50% 0%,   rgba(168, 85, 247, 0.09), transparent 65%),
-        radial-gradient(ellipse 70% 55% at 50% 100%, rgba(0, 245, 255, 0.05),  transparent 65%);
-      pointer-events: none; z-index: 0;
-    }
-
-    /* ── Particles ── */
-    .particle-field { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
-    .particle {
-      position: absolute; border-radius: 50%; opacity: 0;
-      animation: pt-float linear infinite;
-    }
-    @keyframes pt-float {
-      0%   { transform: translateY(20px) scale(0.5); opacity: 0; }
-      20%  { opacity: 0.7; }
-      80%  { opacity: 0.5; }
-      100% { transform: translateY(-80px) scale(1); opacity: 0; }
-    }
-
-    /* ── Layout ── */
-    .login-wrap {
-      position: relative; z-index: 1;
-      min-height: 100vh;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
+      font-family: var(--font);
+      font-size: 14px;
+      display: grid;
+      place-items: center;
       padding: 24px;
+      -webkit-font-smoothing: antialiased;
     }
-
-    /* ── Logo ── */
-    .logo-ring {
-      position: relative;
-      width: 120px; height: 120px;
-      margin-bottom: 28px;
-      flex-shrink: 0;
-    }
-    .logo-ring svg {
-      position: absolute; inset: 0;
-      width: 100%; height: 100%;
-      overflow: visible;
-    }
-    .ring-spin  { animation: spin  24s linear infinite; transform-origin: 60px 60px; }
-    .ring-pulse { animation: pulse  4s ease-in-out infinite; }
-    @keyframes spin  { to { transform: rotate(360deg); } }
-    @keyframes pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
-
-    .logo-glow {
-      position: absolute; inset: 25%;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(0,245,255,0.4), transparent 65%);
-      filter: blur(16px);
-      animation: glow 4s ease-in-out infinite;
-    }
-    @keyframes glow { 0%, 100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
-
-    .logo-text {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-family: var(--display);
-      font-weight: 700; font-size: 28px;
-      letter-spacing: 0.22em;
-      background: linear-gradient(135deg, var(--cyan) 30%, var(--purple) 100%);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-      filter: drop-shadow(0 0 12px rgba(0,245,255,0.5));
-    }
-
-    /* ── Card ── */
-    .login-card {
-      width: 100%; max-width: 380px;
-      background: rgba(17, 17, 26, 0.85);
-      border: 1px solid var(--line-strong);
-      border-radius: 18px;
-      padding: 36px 32px 32px;
-      backdrop-filter: blur(24px);
-      box-shadow: 0 0 60px rgba(0,0,0,0.5), 0 0 30px rgba(0,245,255,0.05);
-      position: relative;
-      overflow: hidden;
-    }
-    /* Top accent line */
-    .login-card::before {
-      content: '';
-      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--cyan-dim), transparent);
-    }
-
-    .card-title {
-      font-family: var(--mono);
-      font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase;
-      color: var(--text-faint);
-      text-align: center;
-      margin-bottom: 24px;
-    }
-    .card-title span { color: var(--cyan); }
-
-    /* ── Form ── */
-    .field { margin-bottom: 16px; }
-
-    .field label {
-      display: block;
-      font-family: var(--mono);
-      font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase;
-      color: var(--text-faint);
-      margin-bottom: 7px;
-    }
-
-    .field input[type="password"] {
+    .card {
       width: 100%;
-      background: rgba(0,245,255,0.04);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 11px 14px;
+      max-width: 360px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px 30px 30px;
+      text-align: center;
+    }
+    .mark {
+      width: 52px; height: 52px;
+      margin: 0 auto 18px;
+      display: grid; place-items: center;
+      color: var(--accent);
+    }
+    h1 { font-size: 19px; font-weight: 500; letter-spacing: 0.02em; }
+    .sub {
+      font-size: 13px; color: var(--text-muted);
+      margin-top: 6px; margin-bottom: 26px;
+    }
+    form { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+    label {
       font-family: var(--mono);
-      font-size: 14px; letter-spacing: 0.1em;
+      font-size: 10.5px;
+      letter-spacing: 0.12em;
+      color: var(--text-faint);
+    }
+    input[type="password"] {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 13px;
+      font-family: var(--font);
+      font-size: 14px;
       color: var(--text);
       outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      transition: border-color 0.15s;
     }
-    .field input[type="password"]::placeholder { color: var(--text-faint); }
-    .field input[type="password"]:focus {
-      border-color: var(--cyan-dim);
-      box-shadow: 0 0 0 3px rgba(0,245,255,0.08), 0 0 14px rgba(0,245,255,0.1);
-    }
-
-    /* ── Error ── */
-    .error-msg {
-      display: flex; align-items: center; gap: 8px;
-      background: rgba(255, 82, 82, 0.08);
-      border: 1px solid rgba(255, 82, 82, 0.25);
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-family: var(--mono);
-      font-size: 10.5px; letter-spacing: 0.08em;
-      color: var(--red);
-      margin-bottom: 16px;
-    }
-    .error-msg svg { flex-shrink: 0; }
-
-    /* ── Submit button ── */
-    .submit-btn {
+    input[type="password"]:focus { border-color: var(--accent); }
+    input[type="password"]::placeholder { color: var(--text-faint); }
+    button {
+      margin-top: 6px;
       width: 100%;
-      padding: 12px;
-      background: linear-gradient(135deg, rgba(0,245,255,0.12), rgba(168,85,247,0.1));
-      border: 1px solid var(--cyan-dim);
-      border-radius: 10px;
-      font-family: var(--mono);
-      font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
-      color: var(--cyan);
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      padding: 11px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
       cursor: pointer;
-      transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
-      margin-top: 8px;
-      box-shadow: 0 0 20px rgba(0,245,255,0.08);
+      transition: background 0.15s;
     }
-    .submit-btn:hover {
-      background: linear-gradient(135deg, rgba(0,245,255,0.2), rgba(168,85,247,0.16));
-      box-shadow: 0 0 28px rgba(0,245,255,0.18);
-      transform: translateY(-1px);
-    }
-    .submit-btn:active { transform: translateY(0); }
-
-    /* ── Footer note ── */
-    .login-note {
-      margin-top: 20px;
+    button:hover { background: var(--accent-hover); }
+    .login-error {
+      margin-top: 14px;
+      padding: 9px 12px;
+      border: 1px solid rgba(229,103,95,0.3);
+      background: rgba(229,103,95,0.08);
+      border-radius: 8px;
+      color: var(--err);
+      font-size: 12.5px;
       text-align: center;
+    }
+    .foot {
+      margin-top: 22px;
       font-family: var(--mono);
-      font-size: 9px; letter-spacing: 0.14em;
+      font-size: 10.5px;
+      letter-spacing: 0.08em;
       color: var(--text-faint);
     }
   </style>
 </head>
 <body>
+  <div class="card">
+    <div class="mark">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+        <rect x="4" y="4" width="16" height="16" rx="5"/>
+        <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <h1>ARIA</h1>
+    <p class="sub">Local voice assistant — locked</p>
 
-<div class="bg-aurora"></div>
-<div class="bg-grid"></div>
-<div class="bg-vignette"></div>
-<div class="particle-field" id="particle-field"></div>
-
-<div class="login-wrap">
-
-  <!-- Logo -->
-  <div class="logo-ring">
-    <div class="logo-glow"></div>
-    <svg viewBox="0 0 120 120" fill="none">
-      <circle class="ring-pulse" cx="60" cy="60" r="56"
-        stroke="#00f5ff" stroke-width="0.8" stroke-opacity="0.35"/>
-      <circle class="ring-spin" cx="60" cy="60" r="44"
-        stroke="#a855f7" stroke-width="0.8" stroke-opacity="0.3"
-        stroke-dasharray="5 4"/>
-      <circle cx="60" cy="60" r="32"
-        stroke="#00f5ff" stroke-width="0.6" stroke-opacity="0.2"/>
-      <!-- Tick marks -->
-      <line x1="60" y1="4"   x2="60" y2="12"  stroke="#00f5ff" stroke-width="1" stroke-opacity="0.5"/>
-      <line x1="60" y1="108" x2="60" y2="116" stroke="#00f5ff" stroke-width="1" stroke-opacity="0.5"/>
-      <line x1="4"  y1="60"  x2="12" y2="60"  stroke="#00f5ff" stroke-width="1" stroke-opacity="0.5"/>
-      <line x1="108" y1="60" x2="116" y2="60" stroke="#00f5ff" stroke-width="1" stroke-opacity="0.5"/>
-      <circle cx="60" cy="4" r="2" fill="#00f5ff" fill-opacity="0.9"/>
-    </svg>
-    <div class="logo-text">ARIA</div>
-  </div>
-
-  <!-- Card -->
-  <div class="login-card">
-    <div class="card-title">// <span>SECURE ACCESS</span> //</div>
+    <form method="post" action="{{ url_for('login') }}" autocomplete="off">
+      <label for="password">PASSPHRASE</label>
+      <input type="password" id="password" name="password" placeholder="Enter passphrase" autocomplete="current-password" autofocus>
+      <button type="submit">Unlock</button>
+    </form>
 
     {% if error %}
-    <div class="error-msg">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      {{ error }}
-    </div>
+    <div class="login-error">{{ error }}</div>
     {% endif %}
 
-    <form method="POST" action="{{ url_for('login') }}" autocomplete="off">
-      <div class="field">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password"
-               placeholder="Enter passphrase…"
-               autofocus spellcheck="false" autocomplete="current-password">
-      </div>
-      <button type="submit" class="submit-btn">Authenticate</button>
-    </form>
+    <div class="foot">RUNNING ON-DEVICE · NO CLOUD</div>
   </div>
-
-  <div class="login-note">ARIA · running locally · your data stays on this machine</div>
-
-</div>
-
-<script>
-(function () {
-  // Particles
-  const field = document.getElementById('particle-field');
-  for (let i = 0; i < 40; i++) {
-    const d = document.createElement('div');
-    d.className = 'particle';
-    d.style.left   = (Math.random() * 100) + '%';
-    d.style.top    = (Math.random() * 100) + '%';
-    const s = Math.random() * 2 + 0.5;
-    d.style.width  = s + 'px';
-    d.style.height = s + 'px';
-    const c = Math.random() > 0.55 ? '#a855f7' : '#00f5ff';
-    d.style.background        = c;
-    d.style.boxShadow         = `0 0 ${s * 4}px ${c}`;
-    d.style.animationDelay    = (Math.random() * 8) + 's';
-    d.style.animationDuration = (Math.random() * 10 + 8) + 's';
-    field.appendChild(d);
-  }
-})();
-</script>
-
 </body>
 </html>
