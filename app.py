@@ -24,6 +24,7 @@ from functools import wraps
 from dotenv import load_dotenv
 
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
+from markupsafe import Markup, escape
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -3282,10 +3283,58 @@ def logout():
     return redirect(url_for("login"))
 
 
+_CHANGELOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CHANGELOG.md")
+
+
+def _md_inline(text):
+    """Render a trusted changelog line: escape, then apply minimal inline markdown."""
+    s = str(escape(text))
+    s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+    s = re.sub(r"`(.+?)`", r"<code>\1</code>", s)
+    return Markup(s)
+
+
+def _parse_changelog(limit=6):
+    """Parse CHANGELOG.md into a list of release entries for the welcome page.
+
+    Each entry: {"date", "title", "changes": [{"kind": "label"|"bullet", "html"}]}.
+    Returns [] if the file is missing or unreadable.
+    """
+    try:
+        with open(_CHANGELOG_PATH, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return []
+
+    entries, cur = [], None
+    for raw in lines:
+        line = raw.strip()
+        heading = re.match(r"^##\s+(.+)$", line)
+        if heading:
+            head = heading.group(1).strip()
+            parts = re.split(r"\s+[—–-]\s+", head, maxsplit=1)
+            cur = {
+                "date":  parts[0].strip(),
+                "title": parts[1].strip() if len(parts) > 1 else "",
+                "changes": [],
+            }
+            entries.append(cur)
+            continue
+        if cur is None or not line:
+            continue
+        bold = re.match(r"^\*\*(.+?)\*\*$", line)
+        if bold:
+            cur["changes"].append({"kind": "label", "html": _md_inline(bold.group(1))})
+        elif line.startswith("- "):
+            cur["changes"].append({"kind": "bullet", "html": _md_inline(line[2:])})
+
+    return entries[:limit]
+
+
 @app.route("/intro")
 @require_auth
 def intro():
-    return render_template("aria_intro.html")
+    return render_template("aria_intro.html", changelog=_parse_changelog())
 
 
 @app.route("/")

@@ -141,6 +141,63 @@
       color: var(--text-faint);
     }
 
+    .updates { display: flex; flex-direction: column; gap: 12px; }
+    .update {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .update-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .update-date {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .update-title { font-size: 14px; font-weight: 500; color: var(--text); }
+    .update-body { display: flex; flex-direction: column; gap: 5px; }
+    .update-sub {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.08em;
+      color: var(--text-faint);
+      margin-top: 7px;
+    }
+    .update-sub:first-child { margin-top: 0; }
+    .update-item {
+      position: relative;
+      padding-left: 14px;
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+    .update-item::before {
+      content: "";
+      position: absolute;
+      left: 2px; top: 9px;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: var(--text-faint);
+    }
+    .update-item strong { color: var(--text); font-weight: 500; }
+    .update-item code, .update-sub code {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 0 4px;
+      border-radius: 4px;
+      color: var(--text);
+    }
+
     @media (max-width: 640px) {
       .features { grid-template-columns: 1fr; }
       .hero h1 { font-size: 30px; }
@@ -195,7 +252,7 @@
         <h3>Vision</h3>
         <p>Point your camera and ask. Qwen2.5-VL describes what it sees on demand.</p>
       </div>
-    </section>
+    </div>
 
     <div class="section-label" style="margin-top:44px;">KEYBOARD SHORTCUTS</div>
     <div class="shortcuts">
@@ -204,6 +261,28 @@
       <div class="shortcut-row"><span>Cycle input history</span><kbd>↑ ↓</kbd></div>
       <div class="shortcut-row"><span>Run terminal command</span><kbd>Enter</kbd></div>
     </div>
+
+    {% if changelog %}
+    <div class="section-label" style="margin-top:44px;">WHAT'S NEW</div>
+    <div class="updates">
+      {% for e in changelog %}
+      <div class="update">
+        <div class="update-head">
+          <span class="update-date">{{ e.date }}</span>
+          {% if e.title %}<span class="update-title">{{ e.title }}</span>{% endif %}
+        </div>
+        {% if e.changes %}
+        <div class="update-body">
+          {% for it in e.changes %}
+            {% if it.kind == 'label' %}<div class="update-sub">{{ it.html }}</div>
+            {% else %}<div class="update-item">{{ it.html }}</div>{% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
 
     <footer>ARIA · RUNNING ON-DEVICE · NO CLOUD, NO TELEMETRY</footer>
 

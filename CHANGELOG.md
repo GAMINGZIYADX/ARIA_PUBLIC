@@ -2,6 +2,14 @@
 
 Notable changes to ARIA are documented in this file.
 
+## 2026-06-22 — Flat dark UI redesign
+
+**Interface**
+- **New visual theme** — replaced the chat, intro, and login pages with a flat, professional dark theme built on a single indigo accent (no gradients, glow, neon, or particles).
+- **Consolidated stylesheet** — merged the former `aria.css` + `style.css` pair into a single `static/css/aria.css`; `style.css` is now a stub kept so existing deploys don't 404.
+- **Update log on the welcome page** — the intro page now renders this changelog under a "What's New" section, sourced directly from `CHANGELOG.md`.
+- **Favicon fix** — the PNG `<link>` now points at the existing `aria_icon.png` instead of a missing `favicon.png`.
+
 ## 2026-06-09 — Concurrency & memory fixes
 
 **Race conditions**
