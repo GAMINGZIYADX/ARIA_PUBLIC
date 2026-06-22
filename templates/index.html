@@ -4,713 +4,442 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ARIA · Local Voice Assistant</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <!-- Functional component styles (messages, terminal, settings, camera, etc.) -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <!-- New design layout (hero, panels, top-bar, particles, system controls) -->
+  <!-- Single consolidated stylesheet (replaces former aria.css + style.css layering) -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/aria.css') }}">
-  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='aria_icon.png') }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='aria_icon.svg') }}">
-
-  <style>
-    /* ─── Conflict resolution & new components ─── */
-
-    /* Allow page-level scrolling (style.css locks overflow:hidden) */
-    html, body { overflow: visible !important; height: auto !important; min-height: 100vh; cursor: default; }
-
-    /* Tab content: block display, not flex (aria.css layout drives child panels) */
-    .tab-content          { display: none !important; flex-direction: unset !important; }
-    .tab-content.active   { display: block !important; }
-    #settings-tab.active  { display: flex !important; flex-direction: column !important; overflow-y: auto !important; max-height: calc(100vh - 130px); }
-    #bash-tab.active      { display: flex !important; flex-direction: column !important; }
-
-    /* Top-bar tab buttons — override sidebar .nav-item styles */
-    .top-tab {
-      padding: 5px 16px !important;
-      border: 1px solid rgba(0, 245, 255, 0.14) !important;
-      border-radius: 8px !important;
-      background: transparent !important;
-      font-family: 'JetBrains Mono', monospace !important;
-      font-size: 10px !important;
-      letter-spacing: 0.16em !important;
-      color: #8b8da3 !important;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: inline-flex !important;
-      align-items: center !important;
-      gap: 0 !important;
-      position: static !important;
-    }
-    .top-tab::before { display: none !important; }  /* hide sidebar active-bar */
-    .top-tab.active  {
-      color: #00f5ff !important;
-      border-color: rgba(0,245,255,0.55) !important;
-      background: rgba(0,245,255,0.06) !important;
-      box-shadow: 0 0 10px rgba(0,245,255,0.2) !important;
-    }
-    .top-tab:hover:not(.active) {
-      color: #e6e7ee !important;
-      border-color: rgba(0,245,255,0.3) !important;
-      background: rgba(0,245,255,0.03) !important;
-    }
-
-    /* Chat messages — override style.css justify-content:flex-end */
-    #messages { justify-content: flex-start !important; }
-
-    /* Hero aria-talking state wired to new SVG logo */
-    .hero-talking {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      gap: 10px; opacity: 0; pointer-events: none;
-      transition: opacity 0.5s ease; z-index: 10;
-    }
-    .hero-talking span {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: #00f5ff; box-shadow: 0 0 8px #00f5ff;
-      animation: ariaDotWave 1.3s ease-in-out infinite; opacity: 0.3;
-    }
-    .hero-talking span:nth-child(2) { animation-delay: 0.18s; }
-    .hero-talking span:nth-child(3) { animation-delay: 0.36s; }
-    .hero-talking span:nth-child(4) { animation-delay: 0.54s; }
-    @keyframes ariaDotWave {
-      0%, 55%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
-      27%            { transform: translateY(-16px) scale(1.3); opacity: 1; box-shadow: 0 0 16px #00f5ff; }
-    }
-    .chat-hero.aria-talking .aria-logo-glow { opacity: 0 !important; }
-    .chat-hero.aria-talking #aria-logo-svg  { opacity: 0.12; transition: opacity 0.5s; }
-    .chat-hero.aria-talking .hero-talking   { opacity: 1; }
-    .chat-hero.aria-talking .hero-tag       { color: #00f5ff; box-shadow: 0 0 14px rgba(0,245,255,0.5); }
-
-    /* Sidebar diag rows (different from settings-panel .diag-row) */
-    .sidebar-diag-row {
-      display: grid; grid-template-columns: 58px 1fr 56px;
-      align-items: center; gap: 10px; padding: 8px 16px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px; color: #8b8da3;
-      letter-spacing: 0.1em; text-transform: uppercase;
-    }
-    .sidebar-diag-row .diag-bar {
-      height: 4px; background: rgba(0,245,255,0.06);
-      border-radius: 2px; overflow: hidden;
-    }
-    .sidebar-diag-row .diag-bar > div {
-      height: 100%;
-      background: linear-gradient(90deg, #00f5ff, #a855f7);
-      box-shadow: 0 0 6px rgba(0,245,255,0.5);
-      transition: width 0.4s;
-    }
-    .sidebar-diag-row .diag-val {
-      text-align: right; color: #00f5ff;
-      text-shadow: 0 0 4px rgba(0,245,255,0.4); font-size: 9px;
-    }
-
-    /* Camera button fit inside input-bar */
-    .input-bar .cam-btn {
-      width: 38px; height: 38px;
-      border-radius: 50%;
-      border: 1px solid rgba(0,245,255,0.18) !important;
-      background: rgba(0,245,255,0.05) !important;
-      color: #00f5ff;
-    }
-    .input-bar .cam-btn:hover  { background: rgba(0,245,255,0.15) !important; box-shadow: 0 0 12px rgba(0,245,255,0.4); }
-    .input-bar .cam-btn.active { border-color: #00f5ff !important; box-shadow: 0 0 10px rgba(0,245,255,0.3); }
-
-    /* Mic button inside input-bar */
-    .input-bar .mic-btn {
-      width: 38px; height: 38px; border-radius: 50%;
-      border: 1px solid rgba(0,245,255,0.18) !important;
-      background: rgba(0,245,255,0.05) !important;
-      color: #8b8da3;
-    }
-    .input-bar .mic-btn:hover    { background: rgba(0,245,255,0.15) !important; color: #00f5ff; }
-    .input-bar .mic-btn.listening { border-color: var(--red, #ff5252) !important; color: var(--red, #ff5252); }
-
-    /* Terminal tab layout */
-    #bash-tab.active { padding: 0 28px 28px; }
-    .term-wrap {
-      border: 1px solid rgba(0,245,255,0.12); border-radius: 18px;
-      background: linear-gradient(180deg, rgba(22,22,36,.7), rgba(11,11,20,.7));
-      backdrop-filter: blur(20px);
-      display: flex; flex-direction: column;
-      height: calc(100vh - 190px);
-      overflow: hidden;
-    }
-    .term-header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 14px 20px; border-bottom: 1px solid rgba(0,245,255,0.12);
-      font-family: 'JetBrains Mono', monospace; font-size: 11px;
-      letter-spacing: 0.2em; color: #8b8da3; text-transform: uppercase;
-    }
-    .term-header .panel-glyph { display: inline-block; }
-
-    /* Settings panel uses full width, inherits style.css look */
-    #settings-tab .settings-panel { padding: 20px 28px 40px; }
-
-    /* btn-ghost width adjustment for sidebar */
-    .sys-panel .btn-ghost { font-size: 10px; padding: 7px 10px; }
-
-    /* Quick-btn tweak: show without kbd */
-    .quick-btn { flex-direction: column; align-items: flex-start; padding: 10px 14px; }
-    .quick-btn span { font-size: 12px; }
-
-    /* Status dot hidden duplicate fix — keep the visible one */
-    .top-stat-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: #ffab40; box-shadow: 0 0 6px #ffab40;
-      animation: statled 1.6s ease-in-out infinite; transition: background .3s, box-shadow .3s;
-    }
-    .top-stat-dot.connected { background: #34d399; box-shadow: 0 0 6px #34d399; animation: none; }
-    @keyframes statled { 50% { opacity: 0.35; } }
-  </style>
 </head>
 <body>
 
-<!-- ── Background: grid + vignette + particles ── -->
-<div class="bg-grid"></div>
-<div class="bg-vignette"></div>
-<div class="particle-field" id="particle-field"></div>
+<div class="app">
 
-<div class="aria-app" id="app">
-
-  <!-- ══════════════ TOP BAR ══════════════ -->
-  <header class="top-bar">
-    <div class="top-bar-left">
-      <span class="logo-mark">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="9"/>
-          <circle cx="12" cy="12" r="4" fill="currentColor"/>
+  <!-- ══════════════ TOP BAR (52px) ══════════════ -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="brand-mark">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <rect x="4" y="4" width="16" height="16" rx="5"/>
+          <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/>
         </svg>
       </span>
-      <span class="logo-text">ARIA</span>
-      <span class="logo-sub">v2.4 · local</span>
+      <span class="brand-name">ARIA</span>
+      <span class="brand-sub">local</span>
     </div>
 
-    <!-- Tab navigation (wired to existing script.js switchTab logic) -->
-    <nav style="display:flex;align-items:center;gap:6px">
-      <button class="nav-item top-tab active" data-tab="chat">CHAT</button>
-      <button class="nav-item top-tab"         data-tab="bash">TERMINAL</button>
-      <button class="nav-item top-tab"         data-tab="settings">CONFIG</button>
-    </nav>
+    <div class="topbar-center">
+      <span class="status-dot" id="_status-dot-compat"></span>
+      <span id="status-text">Connecting</span>
+      <span class="center-sep">·</span>
+      <span id="model-stat">{{ ollama_model | upper }} ● ACTIVE</span>
+    </div>
 
-    <div class="top-bar-right">
-      <span class="stat">
-        <span class="top-stat-dot" id="top-stat-dot"></span>
-        <span id="status-text">CONNECTING</span>
-      </span>
-      <span class="stat" id="model-stat">{{ ollama_model | upper }} ● ACTIVE</span>
-      <span class="stat" id="header-ts">—</span>
-      <button id="settings-toggle" class="stat"
-              style="background:none;border:none;cursor:pointer;color:#8b8da3;padding:0"
-              title="Toggle theme">◐</button>
+    <div class="topbar-right">
+      <span id="header-ts">—</span>
+      <button class="icon-btn" id="panel-toggle" title="System panel" aria-label="System panel">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2.2" fill="currentColor" stroke="none"/>
+          <line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.2" fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="settings-toggle" title="Settings" aria-label="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 010-4h.09A1.65 1.65 0 004.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V2a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H22a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </button>
     </div>
   </header>
 
-  <!-- Hidden elements kept for script.js compatibility -->
-  <span class="status-dot" id="_status-dot-compat" style="display:none"></span>
-  <span id="tab-title" style="display:none">NEURAL CHAT</span>
+  <!-- ══════════════ TABS ══════════════ -->
+  <nav class="tabs">
+    <button class="tab nav-item active" data-tab="chat">Chat</button>
+    <button class="tab nav-item" data-tab="bash">Terminal</button>
+    <button class="tab nav-item" data-tab="settings">Settings</button>
+  </nav>
 
-  <!-- ══════════════ HERO (chat tab only) ══════════════ -->
-  <section class="hero chat-hero" id="hero-section">
-    <div class="hero-rings">
-      <div class="ring ring--1"></div>
-      <div class="ring ring--2"></div>
-      <div class="ring ring--3"></div>
-    </div>
-
-    <!-- ARIA SVG Logo (converted from aria.jsx AriaLogo component) -->
-    <div class="aria-logo-wrap" id="aria-logo" style="width:200px;height:200px">
-      <div class="aria-logo-glow"></div>
-      <div class="aria-logo-glow aria-logo-glow--2"></div>
-      <svg id="aria-logo-svg" viewBox="0 0 200 200" width="200" height="200"
-           style="position:relative;z-index:2;transition:opacity 0.5s">
-        <defs>
-          <linearGradient id="ariaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#00f5ff"/>
-            <stop offset="100%" stop-color="#a855f7"/>
-          </linearGradient>
-          <radialGradient id="ariaCore" cx="50%" cy="50%">
-            <stop offset="0%"   stop-color="#00f5ff" stop-opacity="0.9"/>
-            <stop offset="60%"  stop-color="#a855f7" stop-opacity="0.5"/>
-            <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
-          </radialGradient>
-          <filter id="ariaBlur"><feGaussianBlur stdDeviation="2"/></filter>
-        </defs>
-        <!-- Outer rings -->
-        <circle cx="100" cy="100" r="92" fill="none" stroke="url(#ariaGrad)" stroke-width="0.6" opacity="0.4"/>
-        <circle cx="100" cy="100" r="78" fill="none" stroke="#00f5ff" stroke-width="0.4" opacity="0.3" stroke-dasharray="2 4"/>
-        <!-- Hexagonal scaffold -->
-        <g opacity="0.5" stroke="url(#ariaGrad)" stroke-width="0.8" fill="none">
-          <polygon points="100,30 160,65 160,135 100,170 40,135 40,65"/>
-          <polygon points="100,50 142,75 142,125 100,150 58,125 58,75" opacity="0.6"/>
-        </g>
-        <!-- Core orb -->
-        <circle cx="100" cy="100" r="42" fill="url(#ariaCore)" filter="url(#ariaBlur)" id="aria-core-orb"/>
-        <circle cx="100" cy="100" r="22" fill="#00f5ff" opacity="0.8" filter="url(#ariaBlur)"/>
-        <circle cx="100" cy="100" r="10" fill="#fff" opacity="0.95"/>
-        <!-- Crosshair ticks -->
-        <g stroke="#00f5ff" stroke-width="1" opacity="0.7">
-          <line x1="100" y1="8"   x2="100" y2="20"/>
-          <line x1="100" y1="180" x2="100" y2="192"/>
-          <line x1="8"   y1="100" x2="20"  y2="100"/>
-          <line x1="180" y1="100" x2="192" y2="100"/>
-        </g>
-        <!-- Orbit dots -->
-        <g class="aria-orbit"><circle cx="100" cy="8"   r="2.5" fill="#00f5ff"/></g>
-        <g class="aria-orbit aria-orbit--rev"><circle cx="192" cy="100" r="2" fill="#a855f7"/></g>
-      </svg>
-      <!-- Talking dots overlay (shown by .aria-talking state) -->
-      <div class="hero-talking" id="hero-talking">
-        <span></span><span></span><span></span><span></span>
-      </div>
-    </div>
-
-    <div class="hero-tag">
-      <span class="hero-status-dot"></span>
-      <span id="hero-status-text">READY</span>
-    </div>
-    <h1 class="hero-title">Hello, <span class="hero-title-accent" id="hero-name">there</span></h1>
-    <p class="hero-sub">Running locally — your voice never leaves this machine.</p>
-  </section>
+  <!-- Hidden compat node kept for script.js (mirrors connection status) -->
+  <span id="tab-title" style="display:none">CHAT</span>
 
   <!-- ══════════════ CHAT TAB ══════════════ -->
   <div id="chat-tab" class="tab-content active">
-    <main class="main-grid">
+    <section class="chat-main">
+      <div class="messages" id="messages"></div>
 
-      <!-- ── Chat panel ── -->
-      <section class="chat-panel panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            <span class="panel-glyph"></span>
-            CONVERSATION
-          </div>
-          <div class="panel-meta" id="chat-panel-meta">
-            <span id="chat-turn-count">0 turns</span>
-            <span class="panel-meta-sep">·</span>
-            <span>session active</span>
-          </div>
-        </div>
-
-        <!-- Messages — id="messages" is the hook script.js uses -->
-        <div class="chat-scroll" id="messages"></div>
-
-        <!-- Input bar -->
-        <div class="input-wrap">
-          <div class="input-bar" id="chat-input-bar">
-            <!-- Mic STT -->
-            <button id="mic-btn" class="mic-btn" title="Voice input" style="flex-shrink:0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="1.8">
-                <rect x="9" y="3" width="6" height="12" rx="3"/>
-                <path d="M5 11a7 7 0 0014 0M12 18v3"/>
-              </svg>
-            </button>
-            <!-- Camera -->
-            <button id="cam-btn" class="cam-btn" title="Camera vision" style="flex-shrink:0;position:relative">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="1.8">
-                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-              <span class="cam-active-dot" id="cam-active-dot"></span>
-            </button>
-            <!-- Text input -->
-            <input type="text" id="message-input" class="input-field"
-                   placeholder="Ask ARIA, or click mic to talk…"
-                   autocomplete="off" spellcheck="false"/>
-            <!-- Live TTS wave indicator -->
-            <div class="input-wave">
-              <div class="tts-wave" id="input-tts-wave">
-                <span></span>
-                <span style="animation-delay:.12s"></span>
-                <span style="animation-delay:.24s"></span>
-                <span style="animation-delay:.36s"></span>
-              </div>
-            </div>
-            <!-- Toggles: TTS / THINK / EXEC -->
-            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-              <label class="toggle-label" title="Text-to-speech">
-                <input type="checkbox" id="tts-toggle">
-                <span class="toggle-text">TTS</span>
-              </label>
-              <label class="toggle-label" title="Show ARIA's internal reasoning">
-                <input type="checkbox" id="monologue-toggle">
-                <span class="toggle-text">THINK</span>
-              </label>
-              <label class="toggle-label" title="Execute bash inline">
-                <input type="checkbox" id="bash-toggle">
-                <span class="toggle-text">EXEC</span>
-              </label>
-            </div>
-            <!-- Send -->
-            <button class="input-send" id="send-btn" aria-label="Send">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M13 6l6 6-6 6"/>
-              </svg>
-            </button>
-          </div>
-          <div class="input-hints">
-            <span><kbd>Enter</kbd> send</span>
-            <span><kbd>↑↓</kbd> history</span>
-            <span><kbd>Space</kbd> hold to talk</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── Right sidebar ── -->
-      <aside class="side-col">
-
-        <!-- System controls panel -->
-        <div class="sys-panel">
-          <div class="sys-header">
-            <span class="sys-dot"></span>
-            <span class="sys-title">SYSTEM</span>
-            <span class="sys-status" id="sys-status-label">ACTIVE</span>
-          </div>
-
-          <!-- Volume -->
-          <div class="sys-row">
-            <div class="sys-label">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="2">
-                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
-                <path d="M15.54 8.46a5 5 0 010 7.07"/>
-                <path d="M19.07 4.93a10 10 0 010 14.14"/>
-              </svg>
-              VOLUME
-            </div>
-            <div class="sys-value" id="volume-val">—</div>
-          </div>
-          <div class="sys-slider-track">
-            <input type="range" min="0" max="100" value="70"
-                   class="sys-slider" id="volume-slider">
-            <div class="sys-slider-fill" id="volume-fill" style="width:70%"></div>
-            <div class="sys-slider-glow" id="volume-glow" style="left:calc(70% - 6px)"></div>
-          </div>
-
-          <div class="sys-divider"></div>
-
-          <!-- Spotify / Now playing -->
-          <div class="sys-spotify">
-            <div class="spotify-now">
-              <div class="spotify-art">
-                <img id="spotify-art-img"
-                     src="" alt=""
-                     style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;z-index:2;">
-                <div class="spotify-art-bars" id="spotify-art-bars">
-                  <span></span><span></span><span></span><span></span>
-                </div>
-              </div>
-              <div class="spotify-meta">
-                <div class="spotify-track" id="spotify-track">—</div>
-                <div class="spotify-artist" id="spotify-artist">nothing playing</div>
-              </div>
-            </div>
-            <div class="spotify-controls">
-              <button class="spot-btn" id="spot-prev" aria-label="Previous">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M6 4h2v16H6zM20 4l-12 8 12 8V4z"/>
-                </svg>
-              </button>
-              <button class="spot-btn spot-btn--play" id="spot-play" data-playing="0" aria-label="Play/Pause">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M5 3l16 9-16 9V3z"/>
-                </svg>
-              </button>
-              <button class="spot-btn" id="spot-next" aria-label="Next">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16 4h2v16h-2zM4 4l12 8-12 8V4z"/>
-                </svg>
-              </button>
-            </div>
-            <div class="spot-progress">
-              <div class="spot-progress-fill" id="spot-progress-fill" style="width:0%"></div>
+      <div class="composer">
+        <div class="input-bar" id="chat-input-bar">
+          <button id="mic-btn" class="icon-action mic-btn" title="Voice input">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <rect x="9" y="3" width="6" height="12" rx="3"/>
+              <path d="M5 11a7 7 0 0014 0M12 18v3"/>
+            </svg>
+          </button>
+          <button id="cam-btn" class="icon-action cam-btn" title="Camera vision">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span class="cam-active-dot" id="cam-active-dot"></span>
+          </button>
+          <input type="text" id="message-input" class="input-field"
+                 placeholder="Ask ARIA, or hold space to talk…"
+                 autocomplete="off" spellcheck="false">
+          <div class="input-wave">
+            <div class="tts-wave" id="input-tts-wave">
+              <span></span><span></span><span></span><span></span>
             </div>
           </div>
-
-          <div class="sys-divider"></div>
-
-          <!-- Session actions -->
-          <div style="display:flex;gap:8px">
-            <button id="clear-btn" class="btn-ghost" style="flex:1;text-align:center">// CLEAR</button>
-            <a href="/logout" class="btn-ghost"
-               style="flex:1;text-align:center;text-decoration:none;color:inherit;display:block">
-              // LOCK
-            </a>
-          </div>
-        </div>
-
-        <!-- Quick actions -->
-        <div class="panel quick-panel">
-          <div class="panel-header">
-            <div class="panel-title">
-              <span class="panel-glyph"></span>
-              QUICK ACTIONS
-            </div>
-          </div>
-          <div class="quick-grid">
-            <button class="quick-btn" onclick="_fillInput('open spotify')"><span>Open Spotify</span></button>
-            <button class="quick-btn" onclick="_fillInput('save screenshot')"><span>Screenshot</span></button>
-            <button class="quick-btn" onclick="_fillInput('what time is it?')"><span>Time / Date</span></button>
-            <button class="quick-btn" onclick="_fillInput('run diagnostics')"><span>Diagnostics</span></button>
-          </div>
-        </div>
-
-        <!-- Live status summary -->
-        <div class="panel diag-panel">
-          <div class="panel-header">
-            <div class="panel-title">
-              <span class="panel-glyph"></span>
-              LIVE STATUS
-            </div>
-          </div>
-          <div class="sidebar-diag-row">
-            <span>OLLAMA</span>
-            <div class="diag-bar"><div id="side-ollama-bar" style="width:0%"></div></div>
-            <span class="diag-val" id="side-ollama-val">—</span>
-          </div>
-          <div class="sidebar-diag-row">
-            <span>WHISPER</span>
-            <div class="diag-bar"><div id="side-stt-bar" style="width:100%"></div></div>
-            <span class="diag-val" id="side-stt-val">STT</span>
-          </div>
-          <div class="sidebar-diag-row">
-            <span>TTS</span>
-            <div class="diag-bar"><div id="side-tts-bar" style="width:100%"></div></div>
-            <span class="diag-val" id="side-tts-val">KOKORO</span>
-          </div>
-        </div>
-
-      </aside>
-    </main>
-  </div><!-- #chat-tab -->
-
-  <!-- ══════════════ TERMINAL TAB ══════════════ -->
-  <div id="bash-tab" class="tab-content">
-    <div class="term-wrap">
-      <div class="term-header">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span class="panel-glyph"></span>
-          BASH INTERFACE · SANDBOXED
-        </div>
-        <span>USER@ARIA-SYS</span>
-      </div>
-      <div id="terminal-output" class="terminal-output"></div>
-      <div class="input-wrap" style="border-top:1px solid rgba(0,245,255,0.12)">
-        <div class="input-bar">
-          <span style="font-family:'JetBrains Mono',monospace;color:#00f5ff;opacity:.55;
-                       font-size:12px;flex-shrink:0;user-select:none">$</span>
-          <input type="text" id="bash-input" class="input-field"
-                 placeholder="enter command…" autocomplete="off" spellcheck="false">
-          <button class="input-send" id="bash-execute-btn" aria-label="Execute">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2">
+          <button class="send-btn" id="send-btn" aria-label="Send">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M5 12h14M13 6l6 6-6 6"/>
             </svg>
           </button>
         </div>
-        <div class="input-hints">
-          <span><kbd>Enter</kbd> execute</span>
-          <span><kbd>↑↓</kbd> history</span>
+
+        <div class="composer-footer">
+          <div class="toggles">
+            <label class="toggle-label" title="Text-to-speech">
+              <input type="checkbox" id="tts-toggle">
+              <span class="toggle-text">TTS</span>
+            </label>
+            <label class="toggle-label" title="Show ARIA's internal reasoning">
+              <input type="checkbox" id="monologue-toggle">
+              <span class="toggle-text">THINK</span>
+            </label>
+            <label class="toggle-label" title="Execute bash inline">
+              <input type="checkbox" id="bash-toggle">
+              <span class="toggle-text">EXEC</span>
+            </label>
+          </div>
+          <div class="input-hints">
+            <span><kbd>Enter</kbd>send</span>
+            <span><kbd>↑↓</kbd>history</span>
+            <span><kbd>Space</kbd>hold to talk</span>
+          </div>
         </div>
       </div>
-    </div>
-  </div><!-- #bash-tab -->
+    </section>
+  </div>
 
-  <!-- ══════════════ SETTINGS / CONFIG TAB ══════════════ -->
+  <!-- ══════════════ TERMINAL TAB ══════════════ -->
+  <div id="bash-tab" class="tab-content">
+    <div class="terminal">
+      <div class="term-bar">
+        <div class="term-dots"><span></span><span></span><span></span></div>
+        <span>user@aria — sandboxed bash</span>
+      </div>
+      <div id="terminal-output" class="terminal-output">
+        <div class="term-empty">Ready. Type a command below.</div>
+      </div>
+      <div class="term-input-row">
+        <span class="term-prompt">$</span>
+        <input type="text" id="bash-input" placeholder="enter command…" autocomplete="off" spellcheck="false">
+        <button class="icon-action send-btn" id="bash-execute-btn" aria-label="Execute">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M13 6l6 6-6 6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ SETTINGS TAB (two-column) ══════════════ -->
   <div id="settings-tab" class="tab-content">
-    <div class="settings-panel">
+    <nav class="settings-nav">
+      <button class="settings-nav-item active" data-section="model">Model &amp; System</button>
+      <button class="settings-nav-item" data-section="bash">Bash Permissions</button>
+      <button class="settings-nav-item" data-section="memory">Memory</button>
+      <button class="settings-nav-item" data-section="world">World Intel</button>
+      <button class="settings-nav-item" data-section="diag">Diagnostics</button>
+      <button class="settings-nav-item" data-section="tokens">Token Usage</button>
+    </nav>
 
-      <!-- OLLAMA -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> OLLAMA
-        </div>
-        <div class="setting-item">
-          <label>SERVER URL</label>
-          <input type="text" id="lm-url" placeholder="http://127.0.0.1:11434/v1">
-        </div>
-        <div class="setting-item">
-          <label>MODEL</label>
-          <select id="model-select">
-            <option value="{{ ollama_model }}" selected>{{ ollama_model | upper }}</option>
-          </select>
-        </div>
-      </div>
+    <div class="settings-content">
+      <div class="settings-content-inner">
 
-      <!-- Bash permissions -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> BASH PERMISSIONS
-        </div>
-        <div class="perm-grid">
-          <span class="perm-tag ok">ls</span>
-          <span class="perm-tag ok">cat</span>
-          <span class="perm-tag ok">python3</span>
-          <span class="perm-tag ok">git</span>
-          <span class="perm-tag ok">npm</span>
-          <span class="perm-tag ok">curl</span>
-          <span class="perm-tag ok">docker</span>
-          <span class="perm-tag ok">grep</span>
-          <span class="perm-tag blocked">rm -rf</span>
-          <span class="perm-tag blocked">dd</span>
-          <span class="perm-tag blocked">eval</span>
-          <span class="perm-tag blocked">mkfs</span>
-        </div>
-      </div>
-
-      <!-- System info -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> SYSTEM INFO
-        </div>
-        <div class="info-grid">
-          <span class="info-key">ENGINE</span>  <span class="info-val">OLLAMA LOCAL</span>
-          <span class="info-key">STT</span>     <span class="info-val">FASTER-WHISPER (CUDA)</span>
-          <span class="info-key">TTS</span>     <span class="info-val">KOKORO ONNX / PIPER</span>
-          <span class="info-key">VISION</span>  <span class="info-val">QWEN2.5VL:7B</span>
-          <span class="info-key">BROWSER</span> <span class="info-val">BRAVE (DEFAULT)</span>
-          <span class="info-key">TOOLS</span>   <span class="info-val">OPEN · SEARCH · SPOTIFY</span>
-        </div>
-      </div>
-
-      <!-- Context memory -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> CONTEXT MEMORY
-        </div>
-        <div class="memory-grid" id="memory-grid">
-          <span class="memory-empty">No memory recorded yet — start chatting.</span>
-        </div>
-        <button class="btn-ghost" id="clear-memory-btn">// CLEAR MEMORY</button>
-      </div>
-
-      <!-- Personality memory -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> PERSONALITY MEMORY
-        </div>
-        <div class="memory-grid" id="persona-grid">
-          <span class="memory-empty">No patterns observed yet — start chatting.</span>
-        </div>
-        <button class="btn-ghost" id="reset-persona-btn">// RESET PERSONA</button>
-      </div>
-
-      <!-- Self-model -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> SELF-MODEL
-        </div>
-        <div class="self-model-panel" id="self-model-panel">
-          <span class="memory-empty">No self-model yet — start chatting.</span>
-        </div>
-        <button class="btn-ghost" id="reset-self-model-btn">// RESET SELF-MODEL</button>
-      </div>
-
-      <!-- World Intel -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> WORLD INTEL
-        </div>
-        <div class="wi-header">
-          <div class="wi-toggle-row">
-            <span class="wi-label">MONITORING</span>
-            <button class="wi-toggle-btn" id="wi-toggle-btn">ENABLED</button>
+        <!-- MODEL & SYSTEM -->
+        <section class="settings-section active" id="sec-model">
+          <h2>Model &amp; System</h2>
+          <div class="settings-group">
+            <div class="settings-group-title">OLLAMA</div>
+            <div class="setting-item">
+              <label>Server URL</label>
+              <input type="text" id="lm-url" placeholder="http://127.0.0.1:11434/v1">
+            </div>
+            <div class="setting-item">
+              <label>Model</label>
+              <select id="model-select">
+                <option value="{{ ollama_model }}" selected>{{ ollama_model | upper }}</option>
+              </select>
+            </div>
           </div>
-          <div class="wi-meta" id="wi-meta">Loading…</div>
-        </div>
-        <div class="wi-topics" id="wi-topics"></div>
-        <div class="wi-sensitivity-row">
-          <span class="wi-label">ALERT MODE</span>
-          <select class="wi-select" id="wi-sensitivity">
-            <option value="breaking_only">Breaking Only</option>
-            <option value="all">All Updates</option>
-          </select>
-        </div>
-        <div class="wi-headlines" id="wi-headlines">
-          <span class="memory-empty">No headlines yet — polling every 15 min.</span>
-        </div>
-        <button class="btn-ghost" id="wi-refresh-btn">// REFRESH FEED</button>
-      </div>
+          <div class="settings-group">
+            <div class="settings-group-title">SYSTEM INFO</div>
+            <div class="info-grid">
+              <span class="info-key">ENGINE</span>  <span class="info-val">OLLAMA LOCAL</span>
+              <span class="info-key">STT</span>     <span class="info-val">FASTER-WHISPER (CUDA)</span>
+              <span class="info-key">TTS</span>     <span class="info-val">KOKORO ONNX / PIPER</span>
+              <span class="info-key">VISION</span>  <span class="info-val">QWEN2.5VL:7B</span>
+              <span class="info-key">BROWSER</span> <span class="info-val">BRAVE (DEFAULT)</span>
+              <span class="info-key">TOOLS</span>   <span class="info-val">OPEN · SEARCH · SPOTIFY</span>
+            </div>
+          </div>
+        </section>
 
-      <!-- Diagnostics -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> DIAGNOSTICS
-        </div>
-        <div class="diag-grid" id="diag-grid">
-          <span class="memory-empty">Click RUN DIAGNOSTICS to check system status.</span>
-        </div>
-        <div class="diag-meta" id="diag-meta"></div>
-        <button class="btn-ghost" id="run-diag-btn">// RUN DIAGNOSTICS</button>
-      </div>
+        <!-- BASH PERMISSIONS -->
+        <section class="settings-section" id="sec-bash">
+          <h2>Bash Permissions</h2>
+          <div class="settings-group">
+            <div class="settings-group-title">ALLOWED &amp; BLOCKED</div>
+            <div class="perm-grid">
+              <span class="perm-tag ok">ls</span>
+              <span class="perm-tag ok">cat</span>
+              <span class="perm-tag ok">python3</span>
+              <span class="perm-tag ok">git</span>
+              <span class="perm-tag ok">npm</span>
+              <span class="perm-tag ok">curl</span>
+              <span class="perm-tag ok">docker</span>
+              <span class="perm-tag ok">grep</span>
+              <span class="perm-tag blocked">rm -rf</span>
+              <span class="perm-tag blocked">dd</span>
+              <span class="perm-tag blocked">eval</span>
+              <span class="perm-tag blocked">mkfs</span>
+            </div>
+          </div>
+        </section>
 
-      <!-- Token usage -->
-      <div class="settings-group">
-        <div class="settings-group-title">
-          <span class="sg-bracket">┌─</span> TOKEN USAGE
-        </div>
-        <div class="token-grid">
-          <div class="token-stat">
-            <span class="token-label">SESSION TOKENS</span>
-            <span class="token-value" id="session-tokens">0</span>
+        <!-- MEMORY -->
+        <section class="settings-section" id="sec-memory">
+          <h2>Memory</h2>
+          <div class="settings-group">
+            <div class="settings-group-title">CONTEXT MEMORY</div>
+            <div class="memory-grid" id="memory-grid">
+              <span class="memory-empty">No memory recorded yet — start chatting.</span>
+            </div>
+            <button class="btn-ghost" id="clear-memory-btn">Clear memory</button>
           </div>
-          <div class="token-stat">
-            <span class="token-label">ALL-TIME TOKENS</span>
-            <span class="token-value" id="alltime-tokens">0</span>
+          <div class="settings-group">
+            <div class="settings-group-title">PERSONALITY MEMORY</div>
+            <div class="memory-grid" id="persona-grid">
+              <span class="memory-empty">No patterns observed yet — start chatting.</span>
+            </div>
+            <button class="btn-ghost" id="reset-persona-btn">Reset persona</button>
           </div>
-          <div class="token-stat">
-            <span class="token-label">LAST PROMPT</span>
-            <span class="token-value" id="last-prompt-tokens">—</span>
+          <div class="settings-group">
+            <div class="settings-group-title">SELF-MODEL</div>
+            <div class="self-model-panel" id="self-model-panel">
+              <span class="memory-empty">No self-model yet — start chatting.</span>
+            </div>
+            <button class="btn-ghost" id="reset-self-model-btn">Reset self-model</button>
           </div>
-          <div class="token-stat">
-            <span class="token-label">LAST RESPONSE</span>
-            <span class="token-value" id="last-completion-tokens">—</span>
-          </div>
-        </div>
-        <div class="token-context-block">
-          <div class="token-context-label">
-            <span>CONTEXT WINDOW USED</span>
-            <span id="context-pct">—</span>
-          </div>
-          <div class="token-bar">
-            <div class="token-bar-fill" id="context-bar" style="width:0%"></div>
-          </div>
-          <div class="token-context-sub" id="context-sub">waiting for first message…</div>
-        </div>
-        <button class="btn-ghost" id="reset-tokens-btn">// RESET COUNTER</button>
-      </div>
+        </section>
 
+        <!-- WORLD INTEL -->
+        <section class="settings-section" id="sec-world">
+          <h2>World Intel</h2>
+          <div class="settings-group">
+            <div class="wi-header">
+              <div class="wi-toggle-row">
+                <span class="wi-label">MONITORING</span>
+                <button class="wi-toggle-btn" id="wi-toggle-btn">ENABLED</button>
+              </div>
+              <div class="wi-meta" id="wi-meta">Loading…</div>
+            </div>
+            <div class="wi-topics" id="wi-topics"></div>
+            <div class="wi-sensitivity-row">
+              <span class="wi-label">ALERT MODE</span>
+              <select class="wi-select" id="wi-sensitivity">
+                <option value="breaking_only">Breaking Only</option>
+                <option value="all">All Updates</option>
+              </select>
+            </div>
+            <div class="wi-headlines" id="wi-headlines">
+              <span class="memory-empty">No headlines yet — polling every 15 min.</span>
+            </div>
+            <button class="btn-ghost" id="wi-refresh-btn">Refresh feed</button>
+          </div>
+        </section>
+
+        <!-- DIAGNOSTICS -->
+        <section class="settings-section" id="sec-diag">
+          <h2>Diagnostics</h2>
+          <div class="settings-group">
+            <div class="settings-group-title">SYSTEM CHECKS</div>
+            <div class="diag-grid" id="diag-grid">
+              <span class="memory-empty">Run diagnostics to check system status.</span>
+            </div>
+            <div class="diag-meta" id="diag-meta"></div>
+            <button class="btn-ghost" id="run-diag-btn">Run diagnostics</button>
+          </div>
+        </section>
+
+        <!-- TOKEN USAGE -->
+        <section class="settings-section" id="sec-tokens">
+          <h2>Token Usage</h2>
+          <div class="settings-group">
+            <div class="settings-group-title">USAGE</div>
+            <div class="token-grid">
+              <div class="token-stat">
+                <div class="token-label">SESSION TOKENS</div>
+                <div class="token-value" id="session-tokens">0</div>
+              </div>
+              <div class="token-stat">
+                <div class="token-label">ALL-TIME TOKENS</div>
+                <div class="token-value" id="alltime-tokens">0</div>
+              </div>
+              <div class="token-stat">
+                <div class="token-label">LAST PROMPT</div>
+                <div class="token-value" id="last-prompt-tokens">—</div>
+              </div>
+              <div class="token-stat">
+                <div class="token-label">LAST RESPONSE</div>
+                <div class="token-value" id="last-completion-tokens">—</div>
+              </div>
+            </div>
+            <div class="token-context-block">
+              <div class="token-context-label">
+                <span>CONTEXT WINDOW USED</span>
+                <span id="context-pct">—</span>
+              </div>
+              <div class="token-bar">
+                <div class="token-bar-fill" id="context-bar" style="width:0%"></div>
+              </div>
+              <div class="token-context-sub" id="context-sub">waiting for first message…</div>
+            </div>
+            <button class="btn-ghost" id="reset-tokens-btn">Reset counter</button>
+          </div>
+        </section>
+
+      </div>
     </div>
-  </div><!-- #settings-tab -->
+  </div>
 
-</div><!-- .aria-app -->
+</div><!-- .app -->
+
+<!-- ══════════════ SYSTEM DRAWER (slides from right) ══════════════ -->
+<div class="drawer-scrim" id="drawer-scrim"></div>
+<aside class="drawer" id="system-drawer" aria-label="System controls">
+  <div class="drawer-head">
+    <span class="drawer-title">System</span>
+    <button class="icon-btn" id="drawer-close" aria-label="Close panel">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M6 6l12 12M18 6L6 18"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Volume + Spotify -->
+  <div class="dsection">
+    <div class="dsection-head">
+      <span>AUDIO</span>
+      <span class="status-pill" id="sys-status-label">ACTIVE</span>
+    </div>
+    <div class="dsection-body">
+      <div class="vol-row">
+        <div class="vol-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/>
+          </svg>
+          VOLUME
+        </div>
+        <div class="vol-value" id="volume-val">—</div>
+      </div>
+      <div class="slider-track">
+        <input type="range" min="0" max="100" value="70" class="slider-input" id="volume-slider">
+        <div class="slider-fill" id="volume-fill" style="width:70%"></div>
+        <div class="slider-glow" id="volume-glow" style="left:calc(70% - 7px)"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dsection">
+    <div class="dsection-head"><span>NOW PLAYING</span></div>
+    <div class="dsection-body">
+      <div class="spotify-now">
+        <div class="spotify-art">
+          <img id="spotify-art-img" src="" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;z-index:2;">
+          <div class="spotify-art-bars" id="spotify-art-bars">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="spotify-meta">
+          <div class="spotify-track" id="spotify-track">—</div>
+          <div class="spotify-artist" id="spotify-artist">nothing playing</div>
+        </div>
+      </div>
+      <div class="spotify-controls">
+        <button class="spot-btn" id="spot-prev" aria-label="Previous">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h2v16H6zM20 4l-12 8 12 8V4z"/></svg>
+        </button>
+        <button class="spot-btn spot-btn--play" id="spot-play" data-playing="0" aria-label="Play/Pause">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l16 9-16 9V3z"/></svg>
+        </button>
+        <button class="spot-btn" id="spot-next" aria-label="Next">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 4h2v16h-2zM4 4l12 8-12 8V4z"/></svg>
+        </button>
+      </div>
+      <div class="spot-progress"><div class="spot-progress-fill" id="spot-progress-fill" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="dsection">
+    <div class="dsection-head"><span>QUICK ACTIONS</span></div>
+    <div class="dsection-body">
+      <div class="quick-grid">
+        <button class="quick-btn" onclick="_fillInput('open spotify')">Open Spotify</button>
+        <button class="quick-btn" onclick="_fillInput('save screenshot')">Screenshot</button>
+        <button class="quick-btn" onclick="_fillInput('what time is it?')">Time / Date</button>
+        <button class="quick-btn" onclick="_fillInput('run diagnostics')">Diagnostics</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live status -->
+  <div class="dsection">
+    <div class="dsection-head"><span>LIVE STATUS</span></div>
+    <div class="dsection-body">
+      <div class="status-row">
+        <span>OLLAMA</span>
+        <div class="bar"><div id="side-ollama-bar" style="width:0%"></div></div>
+        <span class="val" id="side-ollama-val">—</span>
+      </div>
+      <div class="status-row">
+        <span>WHISPER</span>
+        <div class="bar"><div id="side-stt-bar" style="width:100%"></div></div>
+        <span class="val" id="side-stt-val">STT</span>
+      </div>
+      <div class="status-row">
+        <span>TTS</span>
+        <div class="bar"><div id="side-tts-bar" style="width:100%"></div></div>
+        <span class="val" id="side-tts-val">KOKORO</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session actions -->
+  <div class="drawer-actions">
+    <button id="clear-btn" class="btn-ghost" style="flex:1">Clear session</button>
+    <a href="/logout" class="btn-ghost" style="flex:1;text-decoration:none">Lock</a>
+  </div>
+</aside>
 
 <!-- ══════════════ CAMERA MODAL ══════════════ -->
-<div id="cam-modal" class="cam-modal" aria-modal="true" role="dialog"
-     aria-label="Camera vision" style="display:none">
+<div id="cam-modal" class="cam-modal" aria-modal="true" role="dialog" aria-label="Camera vision" style="display:none">
   <div class="cam-modal-inner">
-    <div class="cam-corner tl"></div>
-    <div class="cam-corner tr"></div>
-    <div class="cam-corner bl"></div>
-    <div class="cam-corner br"></div>
     <div class="cam-header">
-      <span class="cam-title">[ VISUAL SCAN ]</span>
-      <span class="cam-model-tag">VLM: qwen2.5vl:7b</span>
+      <span class="cam-title">Visual scan</span>
+      <span class="cam-model-tag">qwen2.5vl:7b</span>
     </div>
     <div class="cam-feed-wrap">
       <video id="cam-video" autoplay playsinline muted></video>
-      <div class="cam-scanlines"></div>
-      <div class="cam-hud-tl">LIVE</div>
+      <div class="cam-hud-tl">● LIVE</div>
       <div class="cam-hud-tr" id="cam-res">—</div>
     </div>
     <div class="cam-controls">
-      <input type="text" id="cam-prompt" class="cam-prompt-input"
-             value="What do you see?" autocomplete="off" spellcheck="false">
+      <input type="text" id="cam-prompt" class="cam-prompt-input" value="What do you see?" autocomplete="off" spellcheck="false">
       <div class="cam-buttons">
-        <button id="cam-snap-btn" class="btn-primary">SNAP &amp; ASK</button>
-        <button id="cam-close-btn" class="btn-ghost">CLOSE</button>
+        <button id="cam-close-btn" class="btn-ghost">Close</button>
+        <button id="cam-snap-btn" class="btn-primary">Snap &amp; ask</button>
       </div>
     </div>
   </div>
@@ -718,108 +447,57 @@
 <canvas id="cam-canvas" style="display:none" aria-hidden="true"></canvas>
 
 <!-- ══════════════ SCRIPTS ══════════════ -->
-
-<!-- Existing backend wiring — unchanged, all endpoints preserved -->
+<!-- Backend wiring — unchanged. Defines window.apiFetch / setAriaTalking / switchTab. -->
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 
 <script>
 (function () {
   'use strict';
 
-  // ── Particles ──────────────────────────────────────────────
-  const field = document.getElementById('particle-field');
-  for (let i = 0; i < 65; i++) {
-    const d = document.createElement('div');
-    d.className = 'particle';
-    d.style.left   = (Math.random() * 100) + '%';
-    d.style.top    = (Math.random() * 100) + '%';
-    const s = Math.random() * 2 + 0.5;
-    d.style.width  = s + 'px';
-    d.style.height = s + 'px';
-    const c = Math.random() > 0.6 ? '#a855f7' : '#00f5ff';
-    d.style.background     = c;
-    d.style.boxShadow      = `0 0 ${s * 4}px ${c}`;
-    d.style.animationDelay    = (Math.random() * 6) + 's';
-    d.style.animationDuration = (Math.random() * 8 + 6) + 's';
-    field.appendChild(d);
-  }
-
-  // ── Live clock ─────────────────────────────────────────────
+  // ── Live clock ──
   function tick() {
     const el = document.getElementById('header-ts');
     if (el) el.textContent = new Date().toLocaleTimeString('en-GB');
   }
   tick(); setInterval(tick, 1000);
 
-  // ── Tab switching — hide/show hero section ─────────────────
-  // script.js handles .active toggling on .nav-item and .tab-content
-  // We observe tab clicks to control hero visibility and header title
-  document.querySelectorAll('.nav-item').forEach(btn => {
+  // ── Settings icon → Settings tab (switchTab is global, from script.js) ──
+  document.getElementById('settings-toggle')?.addEventListener('click', () => switchTab('settings'));
+
+  // ── System drawer toggle ──
+  const drawer = document.getElementById('system-drawer');
+  const scrim  = document.getElementById('drawer-scrim');
+  function toggleDrawer(open) {
+    const o = (open === undefined) ? !drawer.classList.contains('open') : open;
+    drawer.classList.toggle('open', o);
+    scrim.classList.toggle('open', o);
+  }
+  document.getElementById('panel-toggle')?.addEventListener('click', () => toggleDrawer());
+  document.getElementById('drawer-close')?.addEventListener('click', () => toggleDrawer(false));
+  scrim?.addEventListener('click', () => toggleDrawer(false));
+
+  // ── Settings two-column section nav ──
+  document.querySelectorAll('.settings-nav-item').forEach(btn => {
     btn.addEventListener('click', function () {
-      const tab = this.dataset.tab;
-      const hero = document.getElementById('hero-section');
-      if (hero) hero.style.display = (tab === 'chat') ? '' : 'none';
+      const sec = this.dataset.section;
+      document.querySelectorAll('.settings-nav-item').forEach(x => x.classList.toggle('active', x === this));
+      document.querySelectorAll('.settings-section').forEach(s =>
+        s.classList.toggle('active', s.id === 'sec-' + sec));
     });
   });
 
-  // ── TTS talking animation — override script.js setAriaTalking ─
-  // script.js defines setAriaTalking(on); we redefine it here after
-  // the script loads to wire it to the new SVG logo.
+  // ── TTS talking animation — rewire setAriaTalking to the input-bar waveform ──
+  // script.js defines a base setAriaTalking; we override it on load (preserve order).
   window.addEventListener('load', function () {
-    // Give script.js time to define the original function
-    const _orig = window.setAriaTalking;
     window.setAriaTalking = function (on) {
-      const hero = document.querySelector('.chat-hero');
-      if (hero) hero.classList.toggle('aria-talking', on);
-      // Activate TTS wave in input bar
       const wave = document.getElementById('input-tts-wave');
       if (wave) wave.classList.toggle('tts-wave--active', on);
-      // Update hero status tag
-      const st = document.getElementById('hero-status-text');
-      if (st) st.textContent = on ? 'SPEAKING' : 'READY';
+      const bar = document.getElementById('chat-input-bar');
+      if (bar) bar.classList.toggle('speaking', on);
     };
   });
 
-  // ── Status dot observer — keep top-bar stat-dot in sync ────
-  // script.js mutates .status-dot.connected and #status-text
-  // We mirror the state to our visible top-stat-dot
-  const topDot = document.getElementById('top-stat-dot');
-  const compatDot = document.getElementById('_status-dot-compat');
-  if (topDot && compatDot) {
-    const obs = new MutationObserver(() => {
-      if (compatDot.classList.contains('connected')) {
-        topDot.classList.add('connected');
-      } else {
-        topDot.classList.remove('connected');
-      }
-    });
-    obs.observe(compatDot, { attributes: true });
-    // Also sync via status-text content
-    const statusText = document.getElementById('status-text');
-    if (statusText) {
-      const textObs = new MutationObserver(() => {
-        const connected = statusText.textContent.trim() === 'Connected';
-        topDot.classList.toggle('connected', connected);
-      });
-      textObs.observe(statusText, { childList: true, subtree: true, characterData: true });
-    }
-  }
-
-  // ── Chat turn counter update ────────────────────────────────
-  const messagesEl = document.getElementById('messages');
-  if (messagesEl) {
-    const counter = document.getElementById('chat-turn-count');
-    const turnObs = new MutationObserver(() => {
-      if (counter) {
-        const n = messagesEl.children.length;
-        counter.textContent = n + (n === 1 ? ' turn' : ' turns');
-      }
-    });
-    turnObs.observe(messagesEl, { childList: true });
-  }
-
-  // ── Volume slider → pactl ───────────────────────────────────
-  // Uses apiFetch (defined in script.js, global scope) for CSRF handling.
+  // ── Volume slider → pactl via apiFetch (CSRF handled in script.js) ──
   const volSlider = document.getElementById('volume-slider');
   const volFill   = document.getElementById('volume-fill');
   const volGlow   = document.getElementById('volume-glow');
@@ -827,12 +505,11 @@
   let _volTimer   = null;
 
   function setVolumeUI(v) {
-    if (volFill)   volFill.style.width = v + '%';
-    if (volGlow)   volGlow.style.left  = `calc(${v}% - 6px)`;
-    if (volVal)    volVal.textContent   = v;
-    if (volSlider) volSlider.value      = v;
+    if (volFill) volFill.style.width = v + '%';
+    if (volGlow) volGlow.style.left  = `calc(${v}% - 7px)`;
+    if (volVal)  volVal.textContent  = v;
+    if (volSlider) volSlider.value   = v;
   }
-
   if (volSlider) {
     volSlider.addEventListener('input', function () {
       const vol = this.value;
@@ -847,24 +524,19 @@
       }, 80);
     });
   }
-
-  // Read current volume on load — GET /api/volume needs no CSRF
   window.addEventListener('load', function () {
     setTimeout(() => {
-      apiFetch('/api/volume')
-        .then(r => r.json())
+      apiFetch('/api/volume').then(r => r.json())
         .then(d => { if (d.level != null) setVolumeUI(d.level); })
         .catch(() => {});
     }, 2500);
   });
 
-  // ── Spotify controls + now-playing ─────────────────────────
-  // Uses apiFetch (global, from script.js) for correct CSRF injection.
-
+  // ── Spotify controls + now-playing ──
   const PLAY_ICON  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l16 9-16 9V3z"/></svg>';
   const PAUSE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
 
-function setSpotifyUI(title, artist, playing, artUrl) {
+  function setSpotifyUI(title, artist, playing, artUrl) {
     const trackEl  = document.getElementById('spotify-track');
     const artistEl = document.getElementById('spotify-artist');
     const playBtn  = document.getElementById('spot-play');
@@ -876,33 +548,20 @@ function setSpotifyUI(title, artist, playing, artUrl) {
       playBtn.dataset.playing = playing ? '1' : '0';
       playBtn.innerHTML = playing ? PAUSE_ICON : PLAY_ICON;
     }
-    // Album art: show img when URL available, else fall back to animated bars
     if (artImg && artBars) {
-      if (artUrl) {
-        artImg.src = artUrl;
-        artImg.style.display = 'block';
-        artBars.style.display = 'none';
-      } else {
-        artImg.style.display = 'none';
-        artBars.style.display = 'flex';
-      }
+      if (artUrl) { artImg.src = artUrl; artImg.style.display = 'block'; artBars.style.display = 'none'; }
+      else { artImg.style.display = 'none'; artBars.style.display = 'flex'; }
     }
   }
 
   function refreshNowPlaying() {
-    // Dedicated endpoint — never returns 500, handles all Spotify error cases.
-    apiFetch('/api/spotify/status')
-      .then(r => r.json())
+    apiFetch('/api/spotify/status').then(r => r.json())
       .then(d => {
-        if (d.status === 'nothing playing' || !d.title) {
-          setSpotifyUI('', '', false, null);
-        } else {
-          setSpotifyUI(d.title, d.artist || '', d.playing, d.art_url || null);
-        }
+        if (d.status === 'nothing playing' || !d.title) setSpotifyUI('', '', false, null);
+        else setSpotifyUI(d.title, d.artist || '', d.playing, d.art_url || null);
       })
-      .catch(() => {}); // network error — leave UI unchanged
+      .catch(() => {});
   }
-
   function spotifyAction(action) {
     return apiFetch('/api/spotify/control', {
       method: 'POST',
@@ -910,7 +569,6 @@ function setSpotifyUI(title, artist, playing, artUrl) {
       body: JSON.stringify({ action })
     }).catch(() => {});
   }
-
   document.getElementById('spot-prev')?.addEventListener('click', () => {
     spotifyAction('previous').then(() => setTimeout(refreshNowPlaying, 800));
   });
@@ -920,49 +578,43 @@ function setSpotifyUI(title, artist, playing, artUrl) {
   document.getElementById('spot-play')?.addEventListener('click', () => {
     spotifyAction('play-pause').then(() => setTimeout(refreshNowPlaying, 600));
   });
-
-  // Initial fetch + poll every 5 s
   window.addEventListener('load', function () {
     setTimeout(refreshNowPlaying, 3000);
     setInterval(refreshNowPlaying, 5000);
   });
 
-  // ── Quick-action fill helper ────────────────────────────────
+  // ── Quick-action fill helper ──
   window._fillInput = function (text) {
     const inp = document.getElementById('message-input');
     if (inp) { inp.value = text; inp.focus(); }
+    toggleDrawer(false);
   };
 
-  // ── Sidebar live-status sync ────────────────────────────────
-  // After health check, update sidebar bars
-  window.addEventListener('load', function () {
-    setTimeout(syncSidebarStatus, 3000);
-    setInterval(syncSidebarStatus, 30000);
-  });
-
+  // ── Sidebar live-status sync ──
   function syncSidebarStatus() {
     fetch('/api/health').then(r => r.json()).then(d => {
       const ok = d.checks || {};
-      // Ollama bar
       const ollamaOk = ok.ollama_connection?.ok;
       const ollamaBar = document.getElementById('side-ollama-bar');
       const ollamaVal = document.getElementById('side-ollama-val');
       if (ollamaBar) ollamaBar.style.width = ollamaOk ? '100%' : '0%';
-      if (ollamaVal) ollamaVal.textContent  = ollamaOk ? 'OK' : 'ERR';
-      // STT bar
+      if (ollamaVal) ollamaVal.textContent = ollamaOk ? 'OK' : 'ERR';
       const sttOk = ok.whisper_stt?.ok;
       const sttBar = document.getElementById('side-stt-bar');
       const sttVal = document.getElementById('side-stt-val');
       if (sttBar) sttBar.style.width = (sttOk === false) ? '30%' : '100%';
-      if (sttVal) sttVal.textContent  = sttOk ? 'OK' : 'INIT';
-      // TTS bar
+      if (sttVal) sttVal.textContent = sttOk ? 'OK' : 'INIT';
       const ttsOk = ok.kokoro_tts?.ok;
       const ttsBar = document.getElementById('side-tts-bar');
       const ttsVal = document.getElementById('side-tts-val');
       if (ttsBar) ttsBar.style.width = (ttsOk === false) ? '30%' : '100%';
-      if (ttsVal) ttsVal.textContent  = ttsOk ? 'OK' : 'INIT';
+      if (ttsVal) ttsVal.textContent = ttsOk ? 'OK' : 'INIT';
     }).catch(() => {});
   }
+  window.addEventListener('load', function () {
+    setTimeout(syncSidebarStatus, 3000);
+    setInterval(syncSidebarStatus, 30000);
+  });
 
 })();
 </script>
