@@ -7,6 +7,7 @@ Powered by Ollama + Faster-Whisper (CUDA) + OpenWakeWord + TTS
 import os
 import sys
 import time
+import shutil
 import tempfile
 import threading
 
@@ -94,52 +95,77 @@ Non-tool questions: plain text only, 1-2 sentences."""
 # ─────────────────────────────────────────────
 # APP MAPPING  (platform-aware)
 # ─────────────────────────────────────────────
+# APP_MAP is a strict allowlist: only these pre-registered apps can ever be
+# launched. There is NO raw-string fallback — an unknown app name is rejected,
+# never executed. Values are platform-specific launch targets:
+#   Linux   → binary name (resolved on PATH by Popen / shutil.which)
+#   Windows → executable name (resolved via shutil.which; PATH apps only)
+#   macOS   → .app bundle name (resolved by `open -a`, no PATH needed)
+# BROWSER_MAP is the equivalent allowlist for open_url's optional `browser` arg.
 if sys.platform == "win32":
     APP_MAP = {
-        "brave": "brave",
-        "firefox": "firefox",
-        "chrome": "chrome",
-        "google chrome": "chrome",
-        "spotify": "spotify",
-        "vscode": "code",
-        "vs code": "code",
-        "code": "code",
-        "terminal": "cmd",
-        "term": "cmd",
-        "powershell": "powershell",
-        "files": "explorer",
-        "file manager": "explorer",
+        # Browsers
+        "brave": "brave", "firefox": "firefox",
+        "chrome": "chrome", "google chrome": "chrome",
+        "edge": "msedge", "microsoft edge": "msedge",
+        # Creative
+        "gimp": "gimp-2.10", "blender": "blender", "krita": "krita",
+        "inkscape": "inkscape", "obs": "obs64",
+        # Communication
+        "discord": "Discord", "slack": "slack",
+        "telegram": "Telegram", "zoom": "Zoom",
+        # Gaming
+        "steam": "steam", "epic games": "EpicGamesLauncher",
+        # Dev
+        "vscode": "code", "vs code": "code", "code": "code",
+        "terminal": "cmd", "term": "cmd", "powershell": "powershell",
+        # Media / files
+        "spotify": "spotify", "vlc": "vlc",
+        "files": "explorer", "file manager": "explorer",
+    }
+    BROWSER_MAP = {
+        "brave": "brave", "firefox": "firefox",
+        "chrome": "chrome", "edge": "msedge",
     }
 elif sys.platform == "darwin":
     APP_MAP = {
-        "brave": "Brave Browser",
-        "firefox": "Firefox",
-        "chrome": "Google Chrome",
-        "google chrome": "Google Chrome",
-        "spotify": "Spotify",
-        "vscode": "Visual Studio Code",
-        "vs code": "Visual Studio Code",
+        "brave": "Brave Browser", "firefox": "Firefox",
+        "chrome": "Google Chrome", "google chrome": "Google Chrome",
+        "edge": "Microsoft Edge", "microsoft edge": "Microsoft Edge",
+        "gimp": "GIMP", "blender": "Blender", "krita": "Krita",
+        "inkscape": "Inkscape", "obs": "OBS",
+        "discord": "Discord", "slack": "Slack",
+        "telegram": "Telegram", "zoom": "zoom.us",
+        "steam": "Steam", "epic games": "Epic Games Launcher",
+        "vscode": "Visual Studio Code", "vs code": "Visual Studio Code",
         "code": "Visual Studio Code",
-        "terminal": "Terminal",
-        "term": "Terminal",
-        "files": "Finder",
-        "file manager": "Finder",
+        "terminal": "Terminal", "term": "Terminal",
+        "spotify": "Spotify", "vlc": "VLC",
+        "files": "Finder", "file manager": "Finder",
+    }
+    BROWSER_MAP = {
+        "brave": "Brave Browser", "firefox": "Firefox",
+        "chrome": "Google Chrome", "edge": "Microsoft Edge",
+        "safari": "Safari",
     }
 else:  # Linux
     APP_MAP = {
-        "brave": "brave-browser",
-        "firefox": "firefox",
-        "chrome": "google-chrome",
-        "google chrome": "google-chrome",
-        "spotify": "spotify",
-        "vscode": "code",
-        "vs code": "code",
-        "code": "code",
-        "terminal": "gnome-terminal",
-        "term": "gnome-terminal",
-        "files": "nautilus",
-        "file manager": "nautilus",
-        "nautilus": "nautilus",
+        "brave": "brave-browser", "firefox": "firefox",
+        "chrome": "google-chrome", "google chrome": "google-chrome",
+        "edge": "microsoft-edge",
+        "gimp": "gimp", "blender": "blender", "krita": "krita",
+        "inkscape": "inkscape", "obs": "obs",
+        "discord": "discord", "slack": "slack",
+        "telegram": "telegram-desktop", "zoom": "zoom",
+        "steam": "steam",
+        "vscode": "code", "vs code": "code", "code": "code",
+        "terminal": "gnome-terminal", "term": "gnome-terminal",
+        "spotify": "spotify", "vlc": "vlc",
+        "files": "nautilus", "file manager": "nautilus", "nautilus": "nautilus",
+    }
+    BROWSER_MAP = {
+        "brave": "brave-browser", "firefox": "firefox",
+        "chrome": "google-chrome", "edge": "microsoft-edge",
     }
 
 # ─────────────────────────────────────────────
@@ -304,18 +330,35 @@ pygame.mixer.init()
 # TOOL EXECUTION FUNCTIONS
 # ─────────────────────────────────────────────
 def run_open_app(app_name: str) -> str:
-    """Launch a desktop application."""
-    try:
-        app_name_normalized = app_name.lower().strip()
-        cmd = APP_MAP.get(app_name_normalized, app_name_normalized)
+    """Launch a desktop application from the APP_MAP allowlist.
 
-        if sys.platform == "win32":
-            # shell=True lets Windows resolve executables via PATH
-            subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", "-a", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.Popen([cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    Only pre-registered apps are launchable. Unknown names are rejected, never
+    executed — there is no raw-string fallback, and no shell is ever used, so an
+    LLM-supplied name cannot become a command. On Windows the target is resolved
+    with shutil.which() to preserve the PATH/PATHEXT resolution the old
+    shelled-out launch was doing implicitly.
+    """
+    normalized = (app_name or "").lower().strip()
+    target = APP_MAP.get(normalized)
+    if target is None:
+        available = ", ".join(sorted(APP_MAP))
+        return f"App '{app_name}' not recognized. Available: {available}"
+    try:
+        if sys.platform == "darwin":
+            # `open -a` resolves registered .app bundles without needing PATH.
+            subprocess.Popen(["open", "-a", target],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif sys.platform == "win32":
+            exe = shutil.which(target)
+            if not exe:
+                return (f"'{app_name}' is registered but its executable "
+                        f"('{target}') was not found on PATH.")
+            subprocess.Popen([exe],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:  # Linux — Popen searches PATH; shutil.which is a resolvability check
+            exe = shutil.which(target) or target
+            subprocess.Popen([exe], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
         return f"Launching {app_name}..."
     except FileNotFoundError:
         return f"Application '{app_name}' not found on this system."
@@ -323,31 +366,63 @@ def run_open_app(app_name: str) -> str:
         return f"Error launching {app_name}: {e}"
 
 
+def _open_url_default(url: str) -> None:
+    """Open an already-validated http/https URL in the default browser. No shell."""
+    if sys.platform == "win32":
+        os.startfile(url)  # ShellExecute of a validated http/https URL
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", url],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        subprocess.Popen(["xdg-open", url],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def run_open_url(url: str, browser: str = "default") -> str:
-    """Open a URL in a specific browser or default application."""
+    """Open a URL in the default browser or a named browser from BROWSER_MAP.
+
+    Only http/https URLs are allowed. Other schemes (file://, javascript:,
+    data:, ftp:, etc.) are explicitly rejected, not silently normalized. The
+    `browser` arg is resolved through the BROWSER_MAP allowlist — a raw
+    LLM-supplied browser string never reaches Popen — and no shell is used.
+    """
+    from urllib.parse import urlparse
+    url = (url or "").strip()
+    scheme = urlparse(url).scheme.lower()
+    if scheme in ("http", "https"):
+        pass
+    elif scheme == "":
+        url = "https://" + url          # bare host like "youtube.com"
+    else:
+        # file://, javascript:, data:, ftp:, etc. are rejected outright.
+        return "Blocked: only http/https URLs are allowed."
+
     try:
-        if not url.startswith(("http://", "https://", "file://")):
-            url = "https://" + url
+        if (browser or "default").lower().strip() == "default":
+            _open_url_default(url)
+            return f"Opening {url}..."
 
-        if browser.lower() == "default":
-            if sys.platform == "win32":
-                os.startfile(url)  # ShellExecute — opens default browser
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        target = BROWSER_MAP.get(browser.lower().strip())
+        if target is None:
+            # Unknown browser → fall back to the safe default opener,
+            # never the raw LLM-supplied string.
+            _open_url_default(url)
+            return f"Opening {url}..."
+
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", "-a", target, url],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif sys.platform == "win32":
+            exe = shutil.which(target)
+            if not exe:
+                _open_url_default(url)
+                return f"Opening {url}..."
+            subprocess.Popen([exe, url],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
-            browser_normalized = browser.lower().strip()
-            browser_cmd = APP_MAP.get(browser_normalized, browser_normalized)
-            if sys.platform == "win32":
-                subprocess.Popen(f"{browser_cmd} {url}", shell=True,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", "-a", browser_cmd, url],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            else:
-                subprocess.Popen([browser_cmd, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
+            exe = shutil.which(target) or target
+            subprocess.Popen([exe, url],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return f"Opening {url} in {browser}..."
     except Exception as e:
         return f"Error opening URL: {e}"
@@ -384,6 +459,41 @@ TOOL_DISPATCH = {
     "search_web": run_search_web,
     "play_on_spotify": run_play_on_spotify,
 }
+
+# Expected arg shape per tool. Used to validate LLM-emitted tool calls BEFORE
+# dispatch so a malformed or unexpected call is rejected instead of silently
+# executing (or crashing on **kwargs). This is validation only — there is no
+# confirmation prompt and no confidence gate, so voice UX stays frictionless.
+_TOOL_ARG_SPEC = {
+    "open_app":        {"required": {"app_name"}, "optional": set()},
+    "open_url":        {"required": {"url"},       "optional": {"browser"}},
+    "search_web":      {"required": {"query"},     "optional": {"browser"}},
+    "play_on_spotify": {"required": {"query"},     "optional": set()},
+}
+
+
+def _validate_tool_args(tool_name: str, tool_args) -> tuple[bool, str]:
+    """Return (ok, reason). Args must be a dict whose keys are exactly the
+    tool's required params (plus any optional ones) and whose values are all
+    strings. Rejects non-dict args, missing/unexpected keys, and non-string
+    values — no execution happens on a bad shape."""
+    spec = _TOOL_ARG_SPEC.get(tool_name)
+    if spec is None:
+        return False, "unknown tool"
+    if not isinstance(tool_args, dict):
+        return False, "args is not an object"
+    keys = set(tool_args)
+    allowed = spec["required"] | spec["optional"]
+    missing = spec["required"] - keys
+    if missing:
+        return False, f"missing required args: {sorted(missing)}"
+    extra = keys - allowed
+    if extra:
+        return False, f"unexpected args: {sorted(extra)}"
+    for k, v in tool_args.items():
+        if not isinstance(v, str):
+            return False, f"arg '{k}' must be a string"
+    return True, "ok"
 
 
 # ─────────────────────────────────────────────
@@ -609,13 +719,20 @@ def ask_claude(user_input: str) -> str:
                     tool_name = tool_call.get("tool")
                     tool_args = tool_call.get("args", {})
 
-                    # Execute the tool
+                    # Dispatch only known tools (allowlist) with a validated
+                    # arg shape — a malformed call is rejected, never executed.
                     if tool_name in TOOL_DISPATCH:
-                        result = TOOL_DISPATCH[tool_name](**tool_args)
-                        results.append(result)
+                        ok, reason = _validate_tool_args(tool_name, tool_args)
+                        if not ok:
+                            print(f"[aria] rejected tool call {tool_name!r}: {reason}",
+                                  file=sys.stderr)
+                            results.append(f"Rejected tool call '{tool_name}': {reason}")
+                        else:
+                            result = TOOL_DISPATCH[tool_name](**tool_args)
+                            results.append(result)
                     else:
                         results.append(f"Unknown tool: {tool_name}")
-                except (json.JSONDecodeError, ValueError):
+                except (json.JSONDecodeError, ValueError, TypeError):
                     pass
 
         if results:
