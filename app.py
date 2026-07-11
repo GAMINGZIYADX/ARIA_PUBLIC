@@ -2198,24 +2198,86 @@ def organize_downloads() -> str:
     return summary
 
 
-def create_file(path: str, content: str = "") -> str:
-    """Create a file at path with optional content. Blocks paths outside home dir."""
-    from pathlib import Path
-    try:
-        expanded_path = Path(os.path.realpath(os.path.expanduser(path)))
-        home_path = Path(os.path.realpath(_HOME_DIR))
+_WORKSPACE_DIR = os.path.join(_HOME_DIR, ".aria-workspace")
 
-        expanded_path.relative_to(home_path)  # raises ValueError if outside home
-    except ValueError:
-        audit("TOOL_BLOCKED", f"create_file blocked path={path!r}")
-        return "Blocked: path must be inside your home directory (~/)."
+
+def create_file(path: str, content: str = "") -> str:
+    """Create a file at path with optional content.
+
+    Resolution + guards:
+      1. WORKSPACE BY DEFAULT — an unanchored path (e.g. "notes.txt",
+         "sub/notes.txt") lands inside ~/.aria-workspace, so a model or injected
+         tool call can't scatter files across the real home directory.
+      2. EXPLICIT HOME WRITE — a path anchored with "~" or an absolute "/" may
+         target the real home dir, but stays gated by the checks already in
+         place: it must resolve (symlinks included) inside $HOME, and must be a
+         normal (non-hidden, non-sensitive) path. Shell profiles, SSH keys,
+         autostart, and every hidden dot-entry at the home root are hard-denied
+         so an injected call can't write a persistence backdoor
+         (e.g. ~/.ssh/authorized_keys, ~/.bashrc).
+
+    Paths that resolve inside the workspace are always allowed (bar traversal
+    escapes); everything else must clear the $HOME + sensitive checks.
+    """
+    from pathlib import Path
+    path = (path or "").strip()
+    if not path:
+        return "Blocked: no file path given."
+
+    home_path = Path(os.path.realpath(_HOME_DIR))
+    workspace = Path(os.path.realpath(_WORKSPACE_DIR))
+
+    # Anchored (~... or absolute) paths may target the real home; unanchored
+    # paths default into the workspace sandbox.
+    is_anchored = path.startswith("~") or os.path.isabs(path)
+    if is_anchored:
+        target = Path(os.path.realpath(os.path.expanduser(path)))
+    else:
+        target = Path(os.path.realpath(os.path.join(str(workspace), path)))
+
     try:
-        parent = expanded_path.parent
-        os.makedirs(str(parent), exist_ok=True)
-        with open(expanded_path, "w") as f:
+        target.relative_to(workspace)
+        in_workspace = True
+    except ValueError:
+        in_workspace = False
+
+    if not in_workspace:
+        # An unanchored path that resolved outside the workspace is a traversal
+        # escape (e.g. "../../.ssh/x"); reject it.
+        if not is_anchored:
+            audit("TOOL_BLOCKED", f"create_file workspace-escape path={path!r}")
+            return "Blocked: path escapes the ARIA workspace."
+
+        # Explicit home write: must stay inside $HOME and clear the sensitive
+        # checks. Compared against the fully symlink-resolved path so
+        # ~/link → ~/.ssh tricks are caught too.
+        try:
+            rel = target.relative_to(home_path)  # raises ValueError if outside home
+        except ValueError:
+            audit("TOOL_BLOCKED", f"create_file outside-home path={path!r}")
+            return "Blocked: path must be inside your home directory (~/)."
+
+        _SENSITIVE_HOME_PREFIXES = (
+            ".ssh", ".bashrc", ".bash_profile", ".profile", ".zshrc",
+            ".config/autostart",
+        )
+        rel_posix = rel.as_posix()
+        first = rel.parts[0] if rel.parts else ""
+        is_home_root_dotentry = first.startswith(".")   # deny-by-default: any ~/.* entry
+        is_sensitive = any(
+            rel_posix == p or rel_posix.startswith(p + "/")
+            for p in _SENSITIVE_HOME_PREFIXES
+        )
+        if not rel.parts or rel_posix in (".", "") or is_home_root_dotentry or is_sensitive:
+            audit("TOOL_BLOCKED", f"create_file sensitive path={path!r} -> {rel_posix!r}")
+            return "Blocked: cannot write to hidden or sensitive paths in your home directory."
+
+    try:
+        os.makedirs(str(target.parent), exist_ok=True)
+        with open(target, "w") as f:
             f.write(content)
-        audit("TOOL_EXEC", f"create_file path={str(expanded_path)!r} size={len(content)}")
-        return f"File created: {expanded_path} ({len(content)} bytes)"
+        audit("TOOL_EXEC", f"create_file path={str(target)!r} size={len(content)}")
+        return f"File created: {target} ({len(content)} bytes)"
     except Exception as e:
         _notify("ARIA Tool Error", f"create_file failed: {str(e)[:60]}")
         return f"Error creating file: {e}"
@@ -3522,7 +3584,6 @@ def chat():
     data = request.json
     user_message = data.get("message", "").strip()[:2000]   # cap input length
     session_id   = data.get("session_id", "default")
-    include_bash = data.get("execute_bash", False)
     _img_raw  = data.get("image", None)
     image_b64 = _img_raw if isinstance(_img_raw, str) and _img_raw else None
 
@@ -3777,13 +3838,13 @@ def chat():
             "timestamp": datetime.now().isoformat()
         })
 
-    # Auto-run bash code blocks if requested
+    # SECURITY: the model must never be able to trigger bash execution.
+    # Model output is influenced by untrusted content (web-search results, RSS
+    # feeds, clipboard, memory), so auto-running ```bash blocks the model emits
+    # is an indirect-prompt-injection → RCE path. bash execution is available
+    # ONLY through /api/bash, which runs commands the human typed themselves.
+    # `bash_results` stays as an empty dict purely to preserve the response shape.
     bash_results = {}
-    if include_bash and "```bash" in response_text:
-        bash_blocks = re.findall(r'```bash\n(.*?)\n```', response_text, re.DOTALL)
-        for i, cmd in enumerate(bash_blocks):
-            result = execute_bash(cmd.strip())
-            bash_results[f"cmd_{i}"] = result
 
     # Store clean response (no thinking) in history
     conversations[session_id].append({"role": "assistant", "content": response_text})
