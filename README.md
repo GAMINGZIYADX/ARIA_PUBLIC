@@ -67,7 +67,7 @@ Unlike Alexa, Siri, or ChatGPT Voice — ARIA runs entirely on your machine.
 | 🧠 | **Local LLM** | Ollama-powered — tested with Qwen 2.5 14B, works with any compatible model |
 | 🔊 | **Voice Synthesis** | Piper TTS (offline) with Edge-TTS fallback |
 | 💾 | **Persistent Memory** | Remembers useful context across sessions using an LLM-filtered memory store |
-| 🛠️ | **Tool Calling** | Opens apps, URLs, controls volume, reads clipboard, runs bash, and more |
+| 🛠️ | **Tool Calling** | Opens apps, URLs, controls volume, reads clipboard, creates files, and more |
 | 🌍 | **World Intelligence** | Background RSS aggregator with proactive breaking news alerts |
 | ⚡ | **Proactive Engine** | ARIA initiates — reminds you, flags news, speaks unprompted |
 | 🎵 | **Spotify Control** | Play, pause, skip, search — all by voice |

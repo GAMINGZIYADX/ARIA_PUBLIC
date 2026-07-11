@@ -2,6 +2,12 @@
 
 Notable changes to ARIA are documented in this file.
 
+## 2026-07-12 — Security: close prompt-injection RCE
+
+**Security**
+- **Model can no longer run bash** — ARIA used to auto-run ```bash blocks the model emitted, which (via web-search/RSS/clipboard content steering the model) was an indirect-prompt-injection path to arbitrary command execution. That path is removed. Bash now runs only from the **Terminal** panel, on commands you type yourself. The chat **EXEC** toggle is gone with it.
+- **`create_file` hardened + sandboxed** — plain filenames now default into a `~/.aria-workspace` directory instead of your home root, and writes to hidden or sensitive paths (`~/.ssh`, `~/.bashrc`, shell profiles, autostart) are blocked even inside `$HOME`, so an injected tool call can't plant a persistence backdoor.
+
 ## 2026-06-22 — Flat dark UI redesign
 
 **Interface**

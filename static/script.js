@@ -327,7 +327,6 @@ async function sendMessage(text, image) {
   _setBusy(true);
 
   const ttsOn  = document.getElementById('tts-toggle')?.checked      ?? false;
-  const bashOn = document.getElementById('bash-toggle')?.checked     ?? false;
   const monOn  = document.getElementById('monologue-toggle')?.checked ?? false;
 
   try {
@@ -337,7 +336,6 @@ async function sendMessage(text, image) {
       body: JSON.stringify({
         message:      text,
         session_id:   _sessionId(),
-        execute_bash: bashOn,
         image:        image
       })
     });
