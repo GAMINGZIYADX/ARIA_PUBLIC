@@ -7,6 +7,8 @@
   <meta name="description" content="ARIA is a fully local, voice-enabled AI assistant. Wake word detection, persistent memory, system controls, Spotify — all running on your own hardware.">
   <meta property="og:title" content="ARIA — Local AI Voice Assistant">
   <meta property="og:description" content="Fully local. No cloud. No data leaves your machine.">
+  <meta name="theme-color" content="#0a0a0f">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2028%2028'%3E%3Ccircle%20cx='14'%20cy='14'%20r='12'%20stroke='%2300f5ff'%20stroke-width='1.5'%20fill='none'%20stroke-opacity='0.7'/%3E%3Ccircle%20cx='14'%20cy='14'%20r='5'%20fill='%2300f5ff'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 
@@ -575,10 +577,21 @@
 
     /* ── Responsive ───────────────────────────────────────────── */
     @media (max-width: 600px) {
-      .nav-links { display: none; }
+      .nav-links li:not(:last-child) { display: none; } /* keep GitHub CTA on mobile */
       .hero-actions { flex-direction: column; align-items: center; }
       .features-grid { grid-template-columns: 1fr; }
       .footer-inner { flex-direction: column; text-align: center; }
+    }
+
+    /* ── Reduced motion ───────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      html { scroll-behavior: auto; }
+      #particles { display: none; }
     }
   </style>
 </head>
@@ -670,11 +683,12 @@
         </svg>
         View on GitHub
       </a>
-      <a href="../setup.py" class="btn btn-secondary">
+      <a href="https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest" class="btn btn-secondary">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
-        setup.py
+        Windows Installer
       </a>
     </div>
 
@@ -789,7 +803,7 @@
     <div class="section-head">
       <div class="section-label">Installation</div>
       <h2 class="section-title">Up and running in minutes</h2>
-      <p class="section-sub">ARIA needs Python 3.10+, Ollama, and a mic. The interactive setup wizard handles the rest.</p>
+      <p class="section-sub">ARIA needs Python 3.10+, Ollama, and a mic. The interactive setup wizard handles the rest — or grab the <a href="https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest">one-click Windows installer</a>.</p>
     </div>
 
     <div class="setup-grid">
@@ -799,9 +813,9 @@
         <div class="step-body">
           <div class="step-title">Clone &amp; install dependencies</div>
           <div class="step-desc">Python 3.10+ required. A CUDA-capable GPU is recommended for real-time transcription, but CPU works too.</div>
-          <div class="code-block">git clone https://github.com/GAMINGZIYADX/ARIA_PUBLIC
-cd ARIA
-bash setup.sh</div>
+          <div class="code-block">git clone https://github.com/GAMINGZIYADX/ARIA_PUBLIC.git
+cd ARIA_PUBLIC
+pip install -r requirements.txt</div>
         </div>
       </div>
 
@@ -820,7 +834,7 @@ ollama pull qwen2.5:14b</div>
         <div class="step-body">
           <div class="step-title">Run the configuration wizard</div>
           <div class="step-desc">Detects your installed models automatically. Asks for your name, password, and optional Spotify credentials. Writes <code style="font-family:var(--mono);color:var(--cyan);font-size:12px">.env</code> for you.</div>
-          <div class="code-block">python3 setup.py</div>
+          <div class="code-block">python setup.py</div>
         </div>
       </div>
 
@@ -828,15 +842,15 @@ ollama pull qwen2.5:14b</div>
         <div class="step-num">04</div>
         <div class="step-body">
           <div class="step-title">Launch ARIA</div>
-          <div class="step-desc">Choose your preferred mode. The desktop launcher wraps the web UI in a native window with a custom WM class.</div>
+          <div class="step-desc">Choose your preferred mode, then open <code style="font-family:var(--mono);color:var(--cyan);font-size:12px">http://localhost:5000</code>. The desktop launcher wraps the web UI in a native window.</div>
           <div class="code-block"><span class="code-comment"># Web UI in browser</span>
-bash run-web.sh
+python app.py
 
 <span class="code-comment"># Native desktop window</span>
-python3 launch.py
+python launch.py
 
 <span class="code-comment"># Voice-only terminal</span>
-python3 aria.py</div>
+python aria.py</div>
         </div>
       </div>
 
@@ -877,12 +891,12 @@ python3 aria.py</div>
   <div class="wrapper">
     <div class="footer-inner">
       <div class="footer-left">
-        © 2026 Ziyad Noucair — Source-available. See <a href="../LICENSE" style="color:var(--text-dim)">License</a>.
+        © 2026 Ziyad Noucair — <a href="https://github.com/GAMINGZIYADX/ARIA_PUBLIC/blob/main/LICENSE" style="color:var(--text-dim)">MIT License</a>.
       </div>
       <div class="footer-links">
         <a href="https://github.com/GAMINGZIYADX/ARIA_PUBLIC">GitHub</a>
-        <a href="../CODE_OF_CONDUCT.md">Code of Conduct</a>
-        <a href="../CONTRIBUTING.md">Contributing</a>
+        <a href="https://github.com/GAMINGZIYADX/ARIA_PUBLIC/blob/main/CODE_OF_CONDUCT.md">Code of Conduct</a>
+        <a href="https://github.com/GAMINGZIYADX/ARIA_PUBLIC/blob/main/CONTRIBUTING.md">Contributing</a>
       </div>
     </div>
   </div>

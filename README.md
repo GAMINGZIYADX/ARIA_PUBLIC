@@ -1,29 +1,22 @@
 <div align="center">
 
-<h1>🤖 ARIA</h1>
-<h3>Autonomous Reasoning & Intelligent Assistant</h3>
+<img src="static/aria_icon.png" alt="ARIA logo" width="160">
+
+# ARIA
+
+### Autonomous Reasoning & Intelligent Assistant
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-black?style=for-the-badge)](https://ollama.com)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?style=for-the-badge)](https://github.com/GAMINGZIYADX/ARIA_PUBLIC)
+[![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-000000?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-4c5561?style=for-the-badge)](https://github.com/GAMINGZIYADX/ARIA_PUBLIC)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](LICENSE)
 
 **A fully local, voice-enabled AI assistant that runs entirely on your hardware.**
 No cloud. No subscriptions. No data leaving your machine.
 
-[**Quick Start**](#quick-start) · [**Features**](#features) · [**Platform Support**](#platform-support) · [**Contributing**](#contributing)
+[**Quick Start**](#quick-start) · [**Features**](#features) · [**Installation**](#installation) · [**Platform Support**](#platform-support) · [**Contributing**](#contributing)
 
 </div>
-
----
-
-## Windows
-
-ARIA was developed on Linux but is **fully Windows-compatible** as of commit [`de5ed62`](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/commit/de5ed62). All Linux-specific subsystems (audio, clipboard, notifications, system controls) have Windows equivalents wired in, and the app handles a missing or corrupted Whisper cache gracefully on first run.
-
-For a step-by-step manual install — prerequisites, venv setup, `.env` configuration, Whisper cache fixes, and a full troubleshooting section — see the **[Windows Setup Guide](docs/WINDOWS_SETUP.md)**.
-
-> **Quickest path:** install Python 3.11+, Ollama, and Git — then `git clone`, `pip install -r requirements.txt`, and `python app.py`. A default `.env` (password: `aria`) is created automatically on first launch.
 
 ---
 
@@ -98,16 +91,16 @@ Unlike Alexa, Siri, or ChatGPT Voice — ARIA runs entirely on your machine.
 
 ```mermaid
 graph TD
-    A[🎤 Microphone] --> B[Wake Word Detection\nOpenWakeWord]
-    B --> C[Speech-to-Text\nfaster-whisper CUDA]
-    C --> D[Local LLM\nOllama / Qwen 2.5]
-    D --> E[Tool Router]
-    E --> F[System Controls]
-    E --> G[App / URL Launcher]
-    E --> H[Spotify]
-    E --> I[Web Search]
-    E --> J[🔊 Text-to-Speech\nPiper / Edge-TTS]
-    J --> K[Speaker]
+    A["🎤 Microphone"] --> B["Wake Word Detection<br/>OpenWakeWord"]
+    B --> C["Speech-to-Text<br/>faster-whisper CUDA"]
+    C --> D["Local LLM<br/>Ollama / Qwen 2.5"]
+    D --> E["Tool Router"]
+    E --> F["System Controls"]
+    E --> G["App / URL Launcher"]
+    E --> H["Spotify"]
+    E --> I["Web Search"]
+    E --> J["🔊 Text-to-Speech<br/>Piper / Edge-TTS"]
+    J --> K["Speaker"]
 ```
 
 ---
@@ -121,13 +114,16 @@ graph TD
 git clone https://github.com/GAMINGZIYADX/ARIA_PUBLIC.git
 cd ARIA_PUBLIC
 
-# 2. Run setup (creates .env, installs dependencies, checks Ollama)
-python setup.py
+# 2. Install dependencies
+pip install -r requirements.txt
 
 # 3. Pull a model
 ollama pull qwen2.5:7b
 
-# 4. Launch
+# 4. Run the configuration wizard (creates .env, checks Ollama)
+python setup.py
+
+# 5. Launch
 python app.py
 ```
 
@@ -138,6 +134,13 @@ Then open **http://localhost:5000** in your browser.
 ---
 
 ## Installation
+
+> [!NOTE]
+> ARIA was developed on Linux but is **fully Windows-compatible** as of commit [`de5ed62`](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/commit/de5ed62). All Linux-specific subsystems (audio, clipboard, notifications, system controls) have Windows equivalents wired in, and the app handles a missing or corrupted Whisper cache gracefully on first run.
+>
+> For a step-by-step manual install — prerequisites, venv setup, `.env` configuration, Whisper cache fixes, and a full troubleshooting section — see the **[Windows Setup Guide](docs/WINDOWS_SETUP.md)**.
+>
+> **Quickest path:** install Python 3.11+, Ollama, and Git — then `git clone`, `pip install -r requirements.txt`, and `python app.py`. A default `.env` (password: `aria`) is created automatically on first launch.
 
 ### Windows — Installer (.exe)
 
@@ -150,22 +153,24 @@ The recommended way to install ARIA on Windows 10/11.
 | Python 3.11 or 3.12 (64-bit) | [python.org/downloads](https://www.python.org/downloads/) | Check **"Add Python to PATH"** during install |
 | Ollama | [ollama.com/download](https://ollama.com/download) | Required for the local LLM |
 
-**Then run the installer:**
+**Then run the installer:** download **[ARIA_Setup.exe](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest/download/ARIA_Setup.exe)** from the [latest release](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest) and double-click it — no admin rights required. On the final screen, tick **"Launch ARIA now"** to open the web UI immediately.
 
-1. Download **[ARIA_Setup.exe](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest/download/ARIA_Setup.exe)** from the [latest release](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest).
-2. Double-click it — no admin rights required.
-3. The installer will:
-   - Verify Python and Ollama are present (and open the download page if not)
-   - Copy ARIA to `%LocalAppData%\ARIA`
-   - Create a Python virtual environment and install all dependencies
-   - Pull `qwen2.5:7b` via Ollama (~4.7 GB download)
-   - Run the interactive configuration wizard (`setup.py`)
-   - Create a **Desktop shortcut** and **Start Menu entry**
-4. On the final screen, tick **"Launch ARIA now"** to open the web UI immediately.
+<details>
+<summary><b>What the installer does</b></summary>
+<br>
 
----
+1. Verifies Python and Ollama are present (and opens the download page if not)
+2. Copies ARIA to `%LocalAppData%\ARIA`
+3. Creates a Python virtual environment and installs all dependencies
+4. Pulls `qwen2.5:7b` via Ollama (~4.7 GB download)
+5. Runs the interactive configuration wizard (`setup.py`)
+6. Creates a **Desktop shortcut** and **Start Menu entry**
 
-### Windows — Fallback (install.bat)
+</details>
+
+<details>
+<summary><b>Windows — Fallback (install.bat)</b></summary>
+<br>
 
 For environments where you cannot run unsigned `.exe` files (e.g. managed corporate machines). Requires the full repo to be present locally.
 
@@ -185,9 +190,11 @@ installer\uninstall.bat
 
 > If you used the `.exe` installer, uninstall through **Windows Settings → Apps → ARIA**.
 
----
+</details>
 
-### Build the installer yourself
+<details>
+<summary><b>Build the installer yourself</b></summary>
+<br>
 
 Requires [Inno Setup 6.3+](https://jrsoftware.org/isinfo.php).
 
@@ -196,6 +203,8 @@ iscc installer\aria_setup.iss
 ```
 
 Output: `installer\dist\ARIA_Setup.exe`
+
+</details>
 
 ---
 
@@ -251,7 +260,8 @@ Override Whisper model at runtime:
 WHISPER_MODEL=small python app.py
 ```
 
-> ⚠️ **Security note:** Bash execution is a powerful feature and should only be enabled on trusted local machines. ARIA can execute system commands — treat her accordingly.
+> [!WARNING]
+> Bash execution is a powerful feature and should only be enabled on trusted local machines. ARIA can execute system commands — treat her accordingly.
 
 ---
 
@@ -264,10 +274,6 @@ WHISPER_MODEL=small python app.py
 - [ ] Plugin SDK for custom tools
 - [ ] Docker image
 - [x] Windows installer / Linux AppImage
-
----
-
-## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for notable changes.
 
