@@ -3,7 +3,7 @@
 ARIA was developed on Linux but is fully Windows-compatible as of commit `de5ed62`.
 This guide covers a clean manual install from source using Python and a virtual environment.
 
-> If you prefer a one-click install, use the **[ARIA_Setup.exe](https://github.com/zn200/ARIA_PUBLIC/releases/latest/download/ARIA_Setup.exe)** from the latest release instead.
+> If you prefer a one-click install, use the **[ARIA_Setup.exe](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest/download/ARIA_Setup.exe)** from the latest release instead.
 
 ---
 
@@ -48,7 +48,7 @@ git --version
 Open Command Prompt or PowerShell and run:
 
 ```bat
-git clone https://github.com/zn200/ARIA_PUBLIC.git
+git clone https://github.com/GAMINGZIYADX/ARIA_PUBLIC.git
 cd ARIA_PUBLIC
 ```
 

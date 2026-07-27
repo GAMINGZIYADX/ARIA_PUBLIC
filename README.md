@@ -5,7 +5,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-black?style=for-the-badge)](https://ollama.com)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?style=for-the-badge)](https://github.com/zn200/ARIA_PUBLIC)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?style=for-the-badge)](https://github.com/GAMINGZIYADX/ARIA_PUBLIC)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](LICENSE)
 
 **A fully local, voice-enabled AI assistant that runs entirely on your hardware.**
@@ -19,7 +19,7 @@ No cloud. No subscriptions. No data leaving your machine.
 
 ## Windows
 
-ARIA was developed on Linux but is **fully Windows-compatible** as of commit [`de5ed62`](https://github.com/zn200/ARIA_PUBLIC/commit/de5ed62). All Linux-specific subsystems (audio, clipboard, notifications, system controls) have Windows equivalents wired in, and the app handles a missing or corrupted Whisper cache gracefully on first run.
+ARIA was developed on Linux but is **fully Windows-compatible** as of commit [`de5ed62`](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/commit/de5ed62). All Linux-specific subsystems (audio, clipboard, notifications, system controls) have Windows equivalents wired in, and the app handles a missing or corrupted Whisper cache gracefully on first run.
 
 For a step-by-step manual install — prerequisites, venv setup, `.env` configuration, Whisper cache fixes, and a full troubleshooting section — see the **[Windows Setup Guide](docs/WINDOWS_SETUP.md)**.
 
@@ -118,7 +118,7 @@ graph TD
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/zn200/ARIA_PUBLIC.git
+git clone https://github.com/GAMINGZIYADX/ARIA_PUBLIC.git
 cd ARIA_PUBLIC
 
 # 2. Run setup (creates .env, installs dependencies, checks Ollama)
@@ -152,7 +152,7 @@ The recommended way to install ARIA on Windows 10/11.
 
 **Then run the installer:**
 
-1. Download **[ARIA_Setup.exe](https://github.com/zn200/ARIA_PUBLIC/releases/latest/download/ARIA_Setup.exe)** from the [latest release](https://github.com/zn200/ARIA_PUBLIC/releases/latest).
+1. Download **[ARIA_Setup.exe](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest/download/ARIA_Setup.exe)** from the [latest release](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/releases/latest).
 2. Double-click it — no admin rights required.
 3. The installer will:
    - Verify Python and Ollama are present (and open the download page if not)
@@ -170,7 +170,7 @@ The recommended way to install ARIA on Windows 10/11.
 For environments where you cannot run unsigned `.exe` files (e.g. managed corporate machines). Requires the full repo to be present locally.
 
 ```bat
-git clone https://github.com/zn200/ARIA_PUBLIC.git
+git clone https://github.com/GAMINGZIYADX/ARIA_PUBLIC.git
 cd ARIA_PUBLIC\installer
 install.bat
 ```
@@ -294,10 +294,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [CODE_OF_CONDUCT.md](C
 
 ## License
 
-[MIT](LICENSE) © [Ziyad Noucair](https://github.com/zn200)
+[MIT](LICENSE) © [Ziyad Noucair](https://github.com/GAMINGZIYADX)
 
 ---
 
 <div align="center">
-<sub>Built with 🤍 by <a href="https://github.com/zn200">zn200</a> — local AI, the way it should be</sub>
+<sub>Built with 🤍 by <a href="https://github.com/GAMINGZIYADX">GAMINGZIYADX</a> — local AI, the way it should be</sub>
 </div>

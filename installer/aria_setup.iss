@@ -16,7 +16,7 @@
 #define AppName      "ARIA"
 #define AppVersion   "1.0"
 #define AppPublisher "Ziyad Noucair"
-#define AppURL       "https://github.com/zn200/ARIA_PUBLIC"
+#define AppURL       "https://github.com/GAMINGZIYADX/ARIA_PUBLIC"
 #define OllamaModel  "qwen2.5:7b"
 
 ; ---------------------------------------------------------------------------

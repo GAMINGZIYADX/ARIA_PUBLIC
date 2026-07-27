@@ -6,7 +6,7 @@ ARIA is a project created by **Ziyad Noucair**. This Code of Conduct applies to 
 
 ## 1. Attribution & Intellectual Property
 
-- ARIA was originally designed and developed by **Ziyad Noucair** (GitHub: [@zn200](https://github.com)).
+- ARIA was originally designed and developed by **Ziyad Noucair** (GitHub: [@GAMINGZIYADX](https://github.com/GAMINGZIYADX)).
 - Any public fork, derivative project, or redistribution must clearly credit **Ziyad Noucair** as the original author in the README, documentation, and any public-facing description.
 - Removing, hiding, or falsifying authorship information is a direct violation of this Code of Conduct and the project license.
 - You may not present a modified version of ARIA as your own original work without explicit written permission from Ziyad Noucair.
