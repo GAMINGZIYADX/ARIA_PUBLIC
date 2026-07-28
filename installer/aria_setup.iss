@@ -87,15 +87,39 @@ Source: "..\spotify_reader.py";   DestDir: "{app}"; Flags: ignoreversion
 Source: "..\requirements.txt";    DestDir: "{app}"; Flags: ignoreversion
 Source: "..\.env.example";        DestDir: "{app}"; Flags: ignoreversion
 
-; ── Package sub-directories ────────────────────────────────────────────────
-Source: "..\modules\*";   DestDir: "{app}\modules";   Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\scripts\*";   DestDir: "{app}\scripts";   Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\static\*";    DestDir: "{app}\static";    Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\templates\*"; DestDir: "{app}\templates"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\docs\*";      DestDir: "{app}\docs";      Flags: ignoreversion recursesubdirs createallsubdirs
+; Optional desktop-window extras, referenced by launch.py's fallback message
+Source: "..\requirements-desktop.txt"; DestDir: "{app}"; Flags: ignoreversion
 
-; ── Default data files (never overwrite if user has personalised them) ─────
-Source: "..\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist
+; ── Licence files — required when redistributing under Apache 2.0 ──────────
+; Section 4(a) requires recipients get a copy of the License; 4(d) requires
+; the NOTICE contents travel with the distribution.
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\NOTICE";  DestDir: "{app}"; Flags: ignoreversion
+
+; ── Changelog — rendered as "What's New" on the welcome page ───────────────
+; app.py reads this from the install directory; without it the panel is empty.
+Source: "..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
+
+; ── Package sub-directories ────────────────────────────────────────────────
+; Excludes: __pycache__ holds bytecode built for the developer's exact Python
+; version — dead weight that a different interpreter ignores.
+Source: "..\modules\*";   DestDir: "{app}\modules";   Excludes: "__pycache__"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\scripts\*";   DestDir: "{app}\scripts";   Excludes: "__pycache__"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\static\*";    DestDir: "{app}\static";    Excludes: "__pycache__"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\templates\*"; DestDir: "{app}\templates"; Excludes: "__pycache__"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\docs\*";      DestDir: "{app}\docs";      Excludes: "__pycache__"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; ── data\ is deliberately NOT bundled ──────────────────────────────────────
+; This directory holds runtime state, not shipped defaults: conversation
+; history, memory.json, persona.json, the memory-palace vector store, and
+; data\secret.key (the Flask session signing key). It is gitignored, so on a
+; developer machine it contains that developer's real data — bundling it
+; leaked personal data into the installer and shipped one shared session key
+; to every user, which also suppressed the per-install key generation in
+; app.py (it only generates a key when secret.key is absent).
+;
+; app.py creates data\ and data\palace\ itself on first run, so there is
+; nothing to seed here. Do not re-add a "..\data\*" Source line.
 
 ; ── Bundled uninstaller helper ────────────────────────────────────────────
 Source: "uninstall.bat"; DestDir: "{app}"; Flags: ignoreversion

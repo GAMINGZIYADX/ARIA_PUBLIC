@@ -103,7 +103,7 @@ if not exist "%ARIA_DIR%" mkdir "%ARIA_DIR%"
 :: robocopy exit code 0 = nothing to copy, 1 = success, 2-7 = various OK states
 :: 8+ = error. We treat 0-7 as success.
 robocopy "%SRC%" "%ARIA_DIR%" /E ^
-    /XD .git __pycache__ installer .venv dist ^
+    /XD .git __pycache__ installer .venv dist data ^
     /XF *.pyc *.pyo .gitignore ^
     /NP /NFL /NDL /NJH /NJS
 
