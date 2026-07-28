@@ -296,6 +296,8 @@ Pull requests are welcome. For major changes, open an issue first.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards.
 
+Found a security issue? Please report it privately — see [SECURITY.md](SECURITY.md). Do not open a public issue.
+
 ---
 
 ## License

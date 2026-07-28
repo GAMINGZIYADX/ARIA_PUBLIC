@@ -29,8 +29,11 @@ issues, pull requests, and discussions.
 **Do not open a public issue for security vulnerabilities.**
 
 ARIA executes tools and shell commands on the user's machine, so security bugs
-here can be serious. Report them privately to **znoucair@gmail.com** and allow
-reasonable time for a fix before any public disclosure.
+here can be serious. Report them privately to **znoucair@gmail.com** or via a
+[GitHub security advisory](https://github.com/GAMINGZIYADX/ARIA_PUBLIC/security/advisories/new).
+
+See [SECURITY.md](SECURITY.md) for scope, what to include, and disclosure
+expectations.
 
 ---
 
