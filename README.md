@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-000000?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-4c5561?style=for-the-badge)](https://github.com/GAMINGZIYADX/ARIA_PUBLIC)
-[![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-22c55e?style=for-the-badge)](LICENSE)
 
 **A fully local, voice-enabled AI assistant that runs entirely on your hardware.**
 No cloud. No subscriptions. No data leaving your machine.
@@ -300,7 +300,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [CODE_OF_CONDUCT.md](C
 
 ## License
 
-[MIT](LICENSE) © [Ziyad Noucair](https://github.com/GAMINGZIYADX)
+[Apache 2.0](LICENSE) © [Ziyad Noucair](https://github.com/GAMINGZIYADX)
+
+You may use, modify, and distribute ARIA — including commercially — provided you retain the
+copyright notice, the [NOTICE](NOTICE) file, and state any significant changes you made.
 
 ---
 
