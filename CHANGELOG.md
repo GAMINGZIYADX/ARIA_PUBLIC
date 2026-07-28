@@ -2,7 +2,7 @@
 
 Notable changes to ARIA are documented in this file.
 
-## 2026-07-28 — Apache 2.0, security policy, slimmer install
+## 2026-07-28 — v1.1: Apache 2.0, security policy, slimmer install
 
 **Licensing**
 - **Relicensed under Apache 2.0** — ARIA shipped under MIT while the contributing guide and code of conduct described it as "source-available" and barred commercial use. MIT grants exactly the rights those documents tried to withhold, so they contradicted the license sitting next to them. Apache 2.0 keeps ARIA properly open source, adds an explicit patent grant, and requires anyone redistributing a modified version to state what they changed.
@@ -19,6 +19,13 @@ Notable changes to ARIA are documented in this file.
 **Dependencies**
 - **PyQt6 removed** — every install pulled in PyQt6 and PyQt6-WebEngine, a large download that was never actually used. On Windows the desktop wrapper uses WebView2, on Linux it uses GTK/WebKit, and both installers launch `app.py` rather than the desktop launcher at all. Fresh installs are now noticeably smaller.
 - **Desktop window is now opt-in** — `launch.py` needs `pip install -r requirements-desktop.txt` first, which documents the per-platform rendering backend. If pywebview is missing, `launch.py` now keeps serving the UI in your browser instead of failing outright.
+
+**Windows installer**
+- **Rebuilt as v1.1** — the previously published installer predated everything above: it still required Python 3.10 and installed PyQt6. It has been rebuilt from current source and replaced on the releases page.
+- **No longer bundles the build machine's `data` folder** — earlier builds packaged `data\` into the installer. That directory holds runtime state — conversation history, memories, persona, the memory-palace store — rather than blank defaults, so a fresh install started life with content from whichever machine built it. ARIA creates `data\` itself on first run, so nothing needs to be shipped. If you installed the earlier build and have not built up your own history yet, delete the `data` folder inside your ARIA directory and restart to begin clean.
+- **License files now included** — `LICENSE` and `NOTICE` ship with the installer, which Apache 2.0 requires of any redistribution.
+- **"What's New" now works in installed copies** — `CHANGELOG.md` was never packaged, so this panel was empty for anyone who installed from the `.exe` rather than running from source.
+- **Smaller package** — stale `__pycache__` bytecode is no longer bundled.
 
 ## 2026-07-12 — Security: close prompt-injection RCE
 
