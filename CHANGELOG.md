@@ -2,6 +2,24 @@
 
 Notable changes to ARIA are documented in this file.
 
+## 2026-07-28 — Apache 2.0, security policy, slimmer install
+
+**Licensing**
+- **Relicensed under Apache 2.0** — ARIA shipped under MIT while the contributing guide and code of conduct described it as "source-available" and barred commercial use. MIT grants exactly the rights those documents tried to withhold, so they contradicted the license sitting next to them. Apache 2.0 keeps ARIA properly open source, adds an explicit patent grant, and requires anyone redistributing a modified version to state what they changed.
+- **`NOTICE` file added** — Apache 2.0 obliges redistributors to carry it forward, which gives the attribution requirement an actual mechanism instead of a request with nothing behind it.
+- **Contributor terms simplified** — the bespoke contributor license agreement is gone. Apache 2.0 already licenses inbound contributions and covers the patent grant, so there is nothing extra to sign.
+
+**Security**
+- **Private vulnerability reporting** — ARIA executes tools and shell commands with your privileges, so an injection bug is effectively remote code execution. A new `SECURITY.md` sets out what is in scope and how to report privately, and GitHub private security advisories are now enabled. Please do not file security bugs as public issues.
+- **Code of conduct rewritten** — it was largely an intellectual-property notice with no conduct standards. It now covers harassment and discrimination, has a proportionate enforcement ladder, and keeps reports confidential.
+
+**Requirements**
+- **Python 3.11 is now the minimum** — the docs and both Windows installers advertised 3.10, but nothing had ever been run below 3.12, and `numpy` requires 3.11+ — so a 3.10 install quietly resolved to an older, untested numpy. The installer version checks were raised to match. Python 3.10 reaches end of life in October 2026 in any case.
+
+**Dependencies**
+- **PyQt6 removed** — every install pulled in PyQt6 and PyQt6-WebEngine, a large download that was never actually used. On Windows the desktop wrapper uses WebView2, on Linux it uses GTK/WebKit, and both installers launch `app.py` rather than the desktop launcher at all. Fresh installs are now noticeably smaller.
+- **Desktop window is now opt-in** — `launch.py` needs `pip install -r requirements-desktop.txt` first, which documents the per-platform rendering backend. If pywebview is missing, `launch.py` now keeps serving the UI in your browser instead of failing outright.
+
 ## 2026-07-12 — Security: close prompt-injection RCE
 
 **Security**
