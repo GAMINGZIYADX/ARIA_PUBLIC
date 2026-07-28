@@ -9,7 +9,7 @@
 ; Output: installer\dist\ARIA_Setup.exe
 ;
 ; Prerequisites for the END USER (checked at runtime — NOT bundled):
-;   • Python 3.10+  https://www.python.org/downloads/
+;   • Python 3.11+  https://www.python.org/downloads/
 ;   • Ollama        https://ollama.com/download
 ; =============================================================================
 
@@ -232,7 +232,7 @@ begin
       'py -3 -c "import sys; print(sys.version_info.minor)"', Output) then
   begin
     Minor := StrToIntDef(Output, -1);
-    if Minor >= 10 then
+    if Minor >= 11 then
     begin
       GPythonCmd := 'py -3';
       Result := True;
@@ -240,9 +240,9 @@ begin
     end;
     if Minor >= 0 then
     begin
-      // py launcher found but version < 3.10
+      // py launcher found but version < 3.11
       MsgBox(
-        'Python 3.' + Output + ' was found, but ARIA requires Python 3.10 or newer.' + #13#10 +
+        'Python 3.' + Output + ' was found, but ARIA requires Python 3.11 or newer.' + #13#10 +
         'Please install Python 3.11 or 3.12 (64-bit) from https://www.python.org/downloads/' + #13#10 +
         'then re-run this installer.',
         mbError, MB_OK);
@@ -255,7 +255,7 @@ begin
       'python -c "import sys; print(sys.version_info.minor)"', Output) then
   begin
     Minor := StrToIntDef(Output, -1);
-    if Minor >= 10 then
+    if Minor >= 11 then
     begin
       GPythonCmd := 'python';
       Result := True;
@@ -287,7 +287,7 @@ end;
 
 // =============================================================================
 // InitializeSetup — runs once before the wizard is displayed.
-// Aborts early if Python 3.10+ or Ollama are missing, and opens the
+// Aborts early if Python 3.11+ or Ollama are missing, and opens the
 // appropriate download page so the user knows exactly what to install.
 // =============================================================================
 function InitializeSetup(): Boolean;
@@ -296,11 +296,11 @@ var
 begin
   Result := True;
 
-  // ── 1. Python 3.10+ ────────────────────────────────────────────────────
+  // ── 1. Python 3.11+ ────────────────────────────────────────────────────
   if not FindPython() then
   begin
     Ans := MsgBox(
-      'Python 3.10 or newer is required but was not found.' + #13#10#13#10 +
+      'Python 3.11 or newer is required but was not found.' + #13#10#13#10 +
       'Click OK to open the Python download page.' + #13#10#13#10 +
       'Installation tips:' + #13#10 +
       '  - Download Python 3.11 or 3.12 (64-bit).' + #13#10 +

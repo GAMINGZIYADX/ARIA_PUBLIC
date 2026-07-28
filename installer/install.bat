@@ -12,7 +12,7 @@ setlocal EnableDelayedExpansion
 ::   4. Follow the prompts.
 ::
 :: Prerequisites (install these before running):
-::   Python 3.10+  https://www.python.org/downloads/
+::   Python 3.11+  https://www.python.org/downloads/
 ::   Ollama        https://ollama.com/download
 :: =============================================================================
 
@@ -36,26 +36,26 @@ echo  ================================================================
 echo.
 
 :: =============================================================================
-:: STEP 0 — Check Python 3.10+
+:: STEP 0 — Check Python 3.11+
 :: =============================================================================
 echo [1/7] Checking Python version...
 
 :: Try the Windows py launcher first
-py -3 -c "import sys; exit(0 if sys.version_info >= (3,10) else 1)" >nul 2>&1
+py -3 -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
 if %errorlevel% equ 0 (
     set "PYCMD=py -3"
     goto :python_ok
 )
 
 :: Fall back to plain 'python'
-python -c "import sys; exit(0 if sys.version_info >= (3,10) else 1)" >nul 2>&1
+python -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
 if %errorlevel% equ 0 (
     set "PYCMD=python"
     goto :python_ok
 )
 
 echo.
-echo  ERROR: Python 3.10 or newer not found.
+echo  ERROR: Python 3.11 or newer not found.
 echo.
 echo  Please install Python 3.11 or 3.12 (64-bit) from:
 echo    https://www.python.org/downloads/

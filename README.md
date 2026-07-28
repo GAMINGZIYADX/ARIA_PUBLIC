@@ -6,7 +6,7 @@
 
 ### Autonomous Reasoning & Intelligent Assistant
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-000000?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-4c5561?style=for-the-badge)](https://github.com/GAMINGZIYADX/ARIA_PUBLIC)
 [![License](https://img.shields.io/badge/License-Apache%202.0-22c55e?style=for-the-badge)](LICENSE)
@@ -107,7 +107,7 @@ graph TD
 
 ## Quick Start
 
-**Prerequisites:** Python 3.10+, [Ollama](https://ollama.com) installed and running
+**Prerequisites:** Python 3.11 or 3.12, [Ollama](https://ollama.com) installed and running
 
 ```bash
 # 1. Clone the repo
