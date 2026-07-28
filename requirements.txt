@@ -13,10 +13,9 @@ flask-limiter
 python-dotenv
 mempalace
 piper-tts
-pywebview
-PyQt6
-qtpy
-PyQt6-WebEngine
 ddgs
 edge-tts
 spotipy
+
+# The optional native desktop window (launch.py) needs extra packages.
+# ARIA does not require them — see requirements-desktop.txt.

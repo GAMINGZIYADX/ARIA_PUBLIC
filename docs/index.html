@@ -842,11 +842,12 @@ ollama pull qwen2.5:14b</div>
         <div class="step-num">04</div>
         <div class="step-body">
           <div class="step-title">Launch ARIA</div>
-          <div class="step-desc">Choose your preferred mode, then open <code style="font-family:var(--mono);color:var(--cyan);font-size:12px">http://localhost:5000</code>. The desktop launcher wraps the web UI in a native window.</div>
+          <div class="step-desc">Choose your preferred mode, then open <code style="font-family:var(--mono);color:var(--cyan);font-size:12px">http://localhost:5000</code>. The desktop launcher wraps the web UI in a native window and needs a few optional extras.</div>
           <div class="code-block"><span class="code-comment"># Web UI in browser</span>
 python app.py
 
-<span class="code-comment"># Native desktop window</span>
+<span class="code-comment"># Native desktop window (optional extras)</span>
+pip install -r requirements-desktop.txt
 python launch.py
 
 <span class="code-comment"># Voice-only terminal</span>

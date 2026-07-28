@@ -70,6 +70,18 @@ ARIA is then available at **http://localhost:5000**.
 > `setup.py` creates `.env` for you. Use `.env.example` only as a reference for
 > what each variable does — you do not need to copy it manually.
 
+**Optional — native desktop window.** `launch.py` wraps the web UI in a native
+window instead of a browser tab. It needs extra packages that ARIA does not
+otherwise require:
+
+```bash
+pip install -r requirements-desktop.txt
+```
+
+On Linux the rendering backend (GTK/WebKit2) comes from system packages rather
+than pip — see the comments in `requirements-desktop.txt`. Without pywebview
+installed, `launch.py` falls back to serving in the browser.
+
 ---
 
 ## Before opening a pull request

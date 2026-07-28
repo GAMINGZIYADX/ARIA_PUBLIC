@@ -108,7 +108,26 @@ if not _wait_for_flask():
 print(f"Flask ready at {URL}", flush=True)
 
 # ── PyWebView window ─────────────────────────────────────────────────
-import webview  # noqa: E402  (import after Flask is ready to avoid GTK/Qt init race)
+try:
+    import webview  # noqa: E402  (import after Flask is ready to avoid GTK/Qt init race)
+except ImportError:
+    # pywebview is optional and not in the default requirements. Flask is
+    # already serving at this point, so fall back to browser mode rather than
+    # exiting and taking the running server down with us.
+    print(
+        "\nNote: pywebview is not installed, so there is no native window.\n"
+        "ARIA is running in your browser instead:\n"
+        f"\n    {URL}\n\n"
+        "For the desktop window:  pip install -r requirements-desktop.txt\n"
+        "Press Ctrl+C to stop.\n",
+        file=sys.stderr,
+        flush=True,
+    )
+    try:
+        flask_thread.join()
+    except KeyboardInterrupt:
+        pass
+    sys.exit(0)
 
 # Clean shutdown: destroy the window when the process is killed
 def _on_signal(sig, frame):
